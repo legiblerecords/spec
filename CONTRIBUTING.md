@@ -9,7 +9,8 @@ Contributions are accepted under the [Developer Certificate of Origin](https://d
 ## Changing the spec
 
 - A change to a published type's schema must follow [the compatibility rules](spec/rules.md#compatible-changes), and comes with fixtures: at least one valid record that uses the change, and an invalid one when the change adds a constraint.
-- Run `python scripts/check_fixtures.py` before opening a pull request. CI runs it too.
+- A change to the schema language or restricted YAML comes with vectors: a case for each new rule, and an error case for each new problem.
+- Run `python scripts/check_fixtures.py` and `python scripts/check_vectors.py` before opening a pull request. CI runs them too.
 - Keep the expanded `v<n>.json` and the short-form `v<n>.yaml` of a schema in step. Until the short-form tools are published here, the JSON is written by hand from the YAML.
 
 ## Publishing your own types
