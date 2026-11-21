@@ -143,7 +143,7 @@ The vectors fix messages for the cases they cover. An implementation may word ot
 
 ## Generation
 
-`generate(body, name)` writes the short form of `normalize(body)`, with the same options as expansion. Expanding the result with those options gives `normalize(body)` back, when it fits within restricted YAML's 64 KiB and 32 levels.
+`generate(body, name)` writes the short form of `normalize(body)`, with the same options as expansion. Expanding the result with those options gives a body whose normal form is `normalize(body)`, when it fits within restricted YAML's 64 KiB and 32 levels. (For a published type the two differ only in the order of `required`, where expansion puts `$type` and `version` first.)
 
 - Document keys in the order `type`, `version`, `title`, `description`, `fields`, `defs`, `examples`, `json`. `$schema` is left out when it is the 2020-12 URL.
 - A body is written as a published type when it has `$id`, `properties.$type.const` and `properties.version.const` that agree with each other; `type` and `version` come from the consts, and the two properties, their `required` entries and `$id` aren't written again.
