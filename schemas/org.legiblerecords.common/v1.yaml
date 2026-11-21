@@ -6,7 +6,8 @@ defs:
   slug: /^[a-z0-9]+(-[a-z0-9]+)*$/ -- A lowercase key made of letters, digits and single hyphens.
   date: string(date)
   datetime: string(date-time)
-  ref: /^[a-z0-9-]+:[a-z0-9]+(-[a-z0-9]+)*$/ -- A reference to another record, kind:key.
+  email: string(email)
+  refString: /^[a-z][a-z-]*:[a-z0-9-]+(#[a-z0-9-]+)?$/ -- A reference to another record, kind:key, optionally #part.
   sha256: /^[0-9a-f]{64}$/
   produced_by:
     description: What wrote the file.

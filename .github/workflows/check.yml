@@ -20,3 +20,4 @@ jobs:
           python-version: "3.12"
       - run: pip install "jsonschema[format]==4.26.0" "referencing==0.37.0"
       - run: python scripts/check_fixtures.py
+      - run: python scripts/check_vectors.py

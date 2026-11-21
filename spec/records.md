@@ -37,7 +37,7 @@ A type identifier is a domain its author controls, reversed, followed by the typ
 
 ## References
 
-A reference from one record to another is a string `kind:key`, such as `control:mfa-company-accounts`, where `kind` is the referenced type's short name (its last segment) and `key` is that record's `id`. A reference resolves within the set of records it travels with: a bundle, or a directory a tool is reading.
+A reference from one record to another is a string `kind:key`, such as `control:mfa-company-accounts`, where `kind` is the referenced type's short name (its `title`) and `key` is that record's `id`. A reference may name a part of the record after `#`, as in `policy:access-control#scope`. Its form is `common.refString`. A reference resolves within the set of records it travels with: a bundle, or a directory a tool is reading.
 
 A reference to an attachment is an object:
 
