@@ -1,0 +1,58 @@
+{
+  "$id": "https://legiblerecords.org/schemas/org.legiblerecords.bundle/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "The manifest of a bundle - every file it holds, with its hash.",
+  "properties": {
+    "$type": {
+      "const": "org.legiblerecords.bundle"
+    },
+    "files": {
+      "items": {
+        "properties": {
+          "media_type": {
+            "description": "For an attachment.",
+            "type": "string"
+          },
+          "path": {
+            "description": "Relative to the bundle's root, with / separators.",
+            "type": "string"
+          },
+          "record_type": {
+            "description": "The record's $type, for a record.",
+            "type": "string"
+          },
+          "record_version": {
+            "description": "The record's version, for a record.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "sha256": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/sha256"
+          }
+        },
+        "required": [
+          "path",
+          "sha256"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "produced_by": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/produced_by"
+    },
+    "source": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/source"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "$type",
+    "version",
+    "files"
+  ],
+  "title": "bundle",
+  "type": "object"
+}

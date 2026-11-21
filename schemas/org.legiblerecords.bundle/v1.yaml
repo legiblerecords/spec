@@ -1,0 +1,24 @@
+type: org.legiblerecords.bundle
+version: 1
+title: bundle
+description: The manifest of a bundle - every file it holds, with its hash.
+fields:
+  produced_by?: common.produced_by
+  source?: common.source
+  files:
+    items:
+      fields:
+        path: string -- Relative to the bundle's root, with / separators.
+        sha256: common.sha256
+        record_type?: string -- The record's $type, for a record.
+        record_version?: integer(1..) -- The record's version, for a record.
+        media_type?: string -- For an attachment.
+examples:
+  - $type: org.legiblerecords.bundle
+    version: 1
+    produced_by: { app: track, build: 2026.11.21 }
+    files:
+      - path: records/control/mfa-company-accounts.json
+        sha256: 2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae
+        record_type: tech.monorail.controls.control
+        record_version: 1

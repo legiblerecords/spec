@@ -1,0 +1,10 @@
+{
+  "$type": "org.legiblerecords.bundle",
+  "files": [
+    {
+      "path": "records/x/y.json",
+      "sha256": "ABC"
+    }
+  ],
+  "version": 1
+}

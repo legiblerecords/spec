@@ -1,0 +1,28 @@
+{
+  "$type": "org.legiblerecords.bundle",
+  "files": [
+    {
+      "path": "records/control/mfa-company-accounts.json",
+      "record_type": "tech.monorail.controls.control",
+      "record_version": 1,
+      "sha256": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+    },
+    {
+      "media_type": "application/pdf",
+      "path": "files/2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae",
+      "sha256": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+    }
+  ],
+  "produced_by": {
+    "app": "track",
+    "build": "2026.11.21"
+  },
+  "source": {
+    "as_of": "2026-11-21T15:00:00Z",
+    "refs": [
+      "c_example"
+    ],
+    "system": "track"
+  },
+  "version": 1
+}

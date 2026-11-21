@@ -1,0 +1,28 @@
+type: org.legiblerecords.common
+version: 1
+title: common
+description: Definitions every Legible Records type can use.
+defs:
+  slug: /^[a-z0-9]+(-[a-z0-9]+)*$/ -- A lowercase key made of letters, digits and single hyphens.
+  date: string(date)
+  datetime: string(date-time)
+  ref: /^[a-z0-9-]+:[a-z0-9]+(-[a-z0-9]+)*$/ -- A reference to another record, kind:key.
+  sha256: /^[0-9a-f]{64}$/
+  produced_by:
+    description: What wrote the file.
+    fields:
+      app: string -- The app or tool, such as track or tolerance.monorail.tools.
+      build?: string -- Its version or build.
+      output?: string -- Which of its outputs, when it has several.
+  source:
+    description: What the file was built from.
+    fields:
+      system: string -- The system of record, such as track.
+      refs?: string[] -- Identifiers in that system, such as commit ids.
+      as_of?: string(date-time)
+  attachment:
+    description: A file that travels with records in a bundle.
+    fields:
+      sha256: sha256
+      name: string -- The file's name for people, such as access-review-q3.pdf.
+      media_type: string -- Such as application/pdf.
