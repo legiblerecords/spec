@@ -65,6 +65,15 @@ A reader of a bundle checks that:
 
 Any failure is an error, not a warning: in a security record, a broken link is usually the thing that matters.
 
+### Encrypted bundles
+
+To travel over email or another transport you don't trust, a bundle's zip is encrypted with [age](https://age-encryption.org/v1), binary or armored, conventionally named `.zip.age`. Nothing inside changes.
+
+- A reader recognizes one by its first bytes (`age-encryption.org/v1` or `-----BEGIN AGE ENCRYPTED FILE-----`), not its name, and after decrypting checks it like any other bundle.
+- Encryption hides the contents, not the file's name, its rough size, or that it was sent.
+- Encryption shows the bundle wasn't changed in transit, not who made it: anyone with the recipient's key or the passphrase can make one. Signing bundles is not yet part of this spec.
+- A passphrase goes by a different channel than the bundle, and never on a command line.
+
 ## Sensitivity labels
 
 A schema can say what kind of data a field holds, with a label from a data taxonomy (`@user.contact.email` in the short form, `x-data` in JSON Schema). Labels tell a reader, a publisher or an agent how to handle a field before reading its value. Legible Records doesn't require a particular taxonomy; types say which they use.
