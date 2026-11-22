@@ -99,7 +99,7 @@ Spaces may separate tokens, but may not come before `[]`, `?` or `(`.
 - `enum(<value>, …)`: `enum` with the values in order. A value in double quotes is a JSON string; a JSON number is a number; a value starting with `'`, or `null`, is a problem; anything else is the string as written, trimmed. Commas and parentheses inside double quotes don't split or close. `type` is `string`, `integer` or `number` when every value has it.
 - `known(<value>, …)`: an open list. `{"type": "string", "examples": [<value>, …]}`, never `enum`. Values are read as for `enum`, but every value must be a string: a number is a problem.
 - `<word>` without a `.`: the name `common.<word>`.
-- `<schema>.<name>`: `{"$ref": "<location of schema>#/$defs/<name>"}`, or `{"$ref": "#/$defs/<name>"}` when `<schema>` is the schema being expanded. `<name>` starts with a letter or `_`.
+- `<schema>.<name>`: `{"$ref": "<location of schema>#/$defs/<name>"}`, or `{"$ref": "#/$defs/<name>"}` when `<schema>` is the schema being expanded: its given name, or a published type's title ([§ Published types](#published-types)). `<name>` starts with a letter or `_`.
 - `<expr>[]`: `{"type": "array", "items": <expr>}`.
 - `<expr>?`: when `<expr>` has `type`, `"null"` is added to it (making it a list), and `null` to its `enum` if it has one; otherwise `{"anyOf": [<expr>, {"type": "null"}]}`.
 - `<expr> @<label>`: the field holds data of that kind. Expands to `"x-data": ["<label>"]` on the property. Several labels (`@a @b`) give several entries, in order. A label is `[a-z0-9_]+(\.[a-z0-9_]+)*`, normally a key from a data taxonomy. Labels sit after the whole expression and before ` -- `; an `@` anywhere else, or one without a valid label, is a problem (`bad label`). An `@` inside a description is text.
@@ -123,6 +123,8 @@ They expand to:
 - `"$type"` and `"version"` at the front of `required`.
 
 A field named `$type` or `version` in a published type is a problem.
+
+A published type's `title`, when it is a word without dots (a letter or `_`, then letters, digits, `_` and `-`), also names the schema itself: `risk-study.range` in a type titled `risk-study` is `{"$ref": "#/$defs/range"}`, whatever name the schema was expanded under. So a type refers to its own definitions the same way in any file, and generation writes them that way. A type titled `common` therefore takes bare names such as `date` as its own definitions, which is how `org.legiblerecords.common` refers to itself.
 
 Published types are also checked against [the published subset](rules.md#the-published-subset). That check is a separate step, so the same expansion serves schemas that aren't published.
 
