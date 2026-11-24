@@ -244,6 +244,10 @@ def key_set_outcome(case, keys_bytes, sig_bytes):
                 return "key_set_rollback"
             if old.get("revoked_at") and not now.get("revoked_at"):
                 return "key_set_rollback"
+        # A compromised key can't come back under a fresh id.
+        revoked = {k["public_key"]: k["id"] for k in previous["keys"] if k.get("revoked_at")}
+        if any(revoked.get(k["public_key"], k["id"]) != k["id"] for k in new["keys"]):
+            return "key_set_rollback"
         held = {k["id"]: k for k in previous["keys"]}
     else:
         held = {p["id"]: {"public_key": p["public_key"]} for p in case["pins"]

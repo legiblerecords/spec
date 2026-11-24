@@ -235,6 +235,12 @@ def key_set_cases():
     new = key_set(key_entry(*K2026))
     add("drops-held-key", prev, [], new, "key_set_rollback")
 
+    # A revoked key's public key comes back under a fresh id.
+    prev = held(key_entry(*K2025, **REVOKED), key_entry(*K2026))
+    reborn = dict(key_entry(*K2025), id="2025-06b")
+    new = key_set(key_entry(*K2025, **REVOKED), key_entry(*K2026), reborn, updated_at=HELD_AT)
+    add("revoked-key-new-id", prev, [], new, "key_set_rollback")
+
     # A key id listed twice: the reader refuses the set, whichever entry it would have read.
     prev = held(key_entry(*K2025, **REVOKED), key_entry(*K2026))
     new = key_set(key_entry(*K2025), key_entry(*K2025, **REVOKED), key_entry(*K2026),
