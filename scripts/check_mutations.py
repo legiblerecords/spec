@@ -29,6 +29,7 @@ MUTATIONS = {
     "revocation-drops-floors": "a revocation drops the replay floors instead of keeping them",
     "pin-alias": "pin alias allowed: a pinned key a key set lists under another id is trusted, and endorses",
     "record-set-order": "a record set's lines needn't be sorted by id",
+    "content-nested-provenance": "content lines drop produced_by and source at every depth, not just the top",
     "number-form": "numbers in record-set lines are written as Python writes them, not as RFC 8785 does",
 }
 

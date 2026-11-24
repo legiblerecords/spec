@@ -2,7 +2,9 @@
 """Check every fixture against its schema, offline.
 
 fixtures/<type>/v<n>/valid/*.json must validate against schemas/<type>/v<n>.json;
-fixtures/<type>/v<n>/invalid/*.json must not. Schemas refer to each other by
+fixtures/<type>/v<n>/invalid/*.json must not. A type of definitions only, such as
+common, has fixtures per definition instead: fixtures/<type>/v<n>/<def>/valid/*.json
+must validate against that definition, and invalid/*.json must not. Schemas refer to each other by
 $id, and are resolved from this repository, never fetched.
 
 Needs: pip install jsonschema referencing
@@ -38,20 +40,33 @@ def main():
             failures += 1
             continue
         schema = json.loads(schema_path.read_text())
-        validator = Draft202012Validator(schema, registry=registry, format_checker=FormatChecker())
-        for expect_valid, sub in ((True, "valid"), (False, "invalid")):
-            for fixture in sorted((version_dir / sub).glob("*.json")):
-                checked += 1
-                errors = list(validator.iter_errors(json.loads(fixture.read_text())))
-                name = fixture.relative_to(ROOT)
-                if expect_valid and errors:
-                    failures += 1
-                    print(f"FAIL {name}: expected valid, got: {errors[0].message}")
-                elif not expect_valid and not errors:
-                    failures += 1
-                    print(f"FAIL {name}: expected invalid, but it validated")
+        targets = [(version_dir, schema)]
+        for def_dir in sorted(d for d in version_dir.iterdir() if d.is_dir() and d.name not in ("valid", "invalid")):
+            if def_dir.name not in schema.get("$defs", {}):
+                print(f"FAIL {def_dir.relative_to(ROOT)}: {schema_path.name} has no definition {def_dir.name}")
+                failures += 1
+                continue
+            targets.append((def_dir, {"$ref": f"{schema['$id']}#/$defs/{def_dir.name}"}))
+        for fixture_dir, target in targets:
+            checked, failures = check_dir(fixture_dir, target, registry, checked, failures)
     print(f"{checked} fixtures checked, {failures} failures")
     return 1 if failures else 0
+
+
+def check_dir(fixture_dir, schema, registry, checked, failures):
+    validator = Draft202012Validator(schema, registry=registry, format_checker=FormatChecker())
+    for expect_valid, sub in ((True, "valid"), (False, "invalid")):
+        for fixture in sorted((fixture_dir / sub).glob("*.json")):
+            checked += 1
+            errors = list(validator.iter_errors(json.loads(fixture.read_text())))
+            name = fixture.relative_to(ROOT)
+            if expect_valid and errors:
+                failures += 1
+                print(f"FAIL {name}: expected valid, got: {errors[0].message}")
+            elif not expect_valid and not errors:
+                failures += 1
+                print(f"FAIL {name}: expected invalid, but it validated")
+    return checked, failures
 
 
 if __name__ == "__main__":

@@ -45,6 +45,45 @@ A reference to an attachment is an object:
 { "sha256": "…", "name": "access-review-q3.pdf", "media_type": "application/pdf" }
 ```
 
+### Pointing at records elsewhere
+
+A `kind:key` reference must resolve in the records it travels with. Two shapes in `org.legiblerecords.common` point at things that don't, and a reader never resolves either inside a bundle, so neither can make a bundle `bad_bundle`.
+
+**An external reference** (`common.externalRef`) names a record that travels elsewhere, in another stream or from another publisher:
+
+```json
+{ "type": "tech.monorail.policy.document", "key": "access-control",
+  "publisher": "acme.example", "revision": 3, "sha256": "…" }
+```
+
+- `type` is the record's `$type` and `key` its `id`. `publisher` is absent when the record is the referring record's publisher's own.
+- `revision` is for types that number their own revisions, such as a policy. It is not the type's `version`.
+- `sha256` is the SHA-256 of the record's content line ([§ Content lines](#content-lines)), pinning exactly what it said.
+- A reader that holds the target resolves the reference, and shows one it can't resolve as unresolved. When the hash doesn't match the record it holds under that key and revision, it holds different content, and says so.
+
+**An identifier** (`common.identifier`) is something's id in one system, `{ "system": "github", "id": "acme/api" }`. The two halves together are the key: they match when both are exactly equal. `system` is lowercase free text, such as `github`, `gitlab`, `okta`, `entra`, `google`, `slack` or `serial`; a misspelt system matches nothing, and a reader shows that, rather than matching something else.
+
+**A person match** (`common.personMatch`) is what a publisher knows about the person a record is about, when it doesn't know the reader's key for them:
+
+```json
+{ "emails": ["ana@acme.example"], "identifiers": [{ "system": "okta", "id": "00u1ab2cd3" }], "name": "Ana Lima" }
+```
+
+- It has `emails` or `identifiers`, or both. A match with neither can't be matched; a reader shows it as unresolved.
+- A reader matches identifiers first, against the identifiers of the people it holds. Only when no identifier matches anyone does it compare emails, case-insensitively.
+- A match to no one, or to more than one person, is left unresolved and shown to a person. A reader never chooses between candidates.
+- `name` is for the people resolving a match. It is never matched on.
+
+### Content lines
+
+A record's **content line** is its canonical line ([§ Record sets](#record-sets)) with the top-level fields `produced_by` and `source` removed, and without the final `\n`. Its SHA-256, in lowercase hex, is the record's **content hash**.
+
+- Provenance doesn't change content: republishing a record from a new build, or a later export, keeps its hash. A change to anything else the record says changes it.
+- Only top-level `produced_by` and `source` are removed; a field of that name inside another object is content.
+- The hash is over the canonical form, not over the bytes of a per-record file, which writers may format as they like.
+
+[vectors/content-lines.json](../vectors/content-lines.json) gives records, their content lines and their hashes; `plain` and `provenance-removed` hash alike, and `changed-field` differs.
+
 ## Bundles
 
 Several records, with or without attachments, travel as a bundle: a directory, or a zip of one.
