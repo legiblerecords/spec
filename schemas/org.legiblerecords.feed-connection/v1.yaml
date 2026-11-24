@@ -1,0 +1,53 @@
+type: org.legiblerecords.feed-connection
+version: 1
+title: feed-connection
+description: How a reader reaches and trusts a feed. It names environment variables, never secrets, so it can be emailed or committed.
+fields:
+  feed: /^(?=[^\/]{1,253}\/)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+\/[a-z0-9]+(-[a-z0-9]+)*$/ -- The feed's id, <publisher>/<slug>. Its feed.json must have this id.
+  location:
+    description: Where the feed's files are. The fields a kind needs are required for it, which the reader enforces.
+    fields:
+      kind: known(https, s3) -- https needs url; s3 needs endpoint, region, bucket and prefix.
+      url?: string(uri) -- For https, the feed's base URL, ending in a slash.
+      endpoint?: string(uri) -- For s3, the service's URL.
+      region?: string -- For s3, such as auto.
+      bucket?: string -- For s3.
+      prefix?: string -- For s3, the key prefix the feed's files are under, empty or ending in a slash.
+      path_style?: boolean -- For s3, address the bucket in the path rather than the host name. False when absent.
+  auth:
+    description: How the reader authenticates. Every secret is named by an environment variable, in a field ending _env.
+    fields:
+      method: known(none, bearer, oauth-client-credentials, s3) -- What the reader sends; the fields a method needs are required for it.
+      token_env?: /^[A-Za-z_][A-Za-z0-9_]*$/ -- For bearer, the variable holding the token.
+      token_url?: string(uri) -- For oauth-client-credentials, the token endpoint.
+      client_id?: string -- For oauth-client-credentials.
+      client_secret_env?: /^[A-Za-z_][A-Za-z0-9_]*$/ -- For oauth-client-credentials, the variable holding the client secret.
+      resource?: string -- For oauth-client-credentials, sent as resource.
+      scope?: string -- For oauth-client-credentials, sent as scope.
+      access_key_id_env?: /^[A-Za-z_][A-Za-z0-9_]*$/ -- For s3, the variable holding the access key id.
+      secret_access_key_env?: /^[A-Za-z_][A-Za-z0-9_]*$/ -- For s3, the variable holding the secret access key.
+      token?:
+        description: Never a value. A connection file holds no secret; token_env names the variable that holds the token.
+        type: "null"
+        json:
+          x-note: A literal token here would put a secret in a file meant to be emailed or committed.
+  keys?:
+    description: Pinned keys. Absent or empty means use the publisher's key set, and ask before trusting it the first time.
+    items:
+      fields:
+        publisher: common.domain
+        id: /^[a-z0-9][a-z0-9.-]{0,63}$/ -- The key's id within its publisher.
+        alg: known(ed25519) -- Only ed25519 is defined.
+        public_key: /^[A-Za-z0-9_-]{43}$/ -- The 32-byte public key, base64url without padding.
+  age_identity_env?: /^[A-Za-z_][A-Za-z0-9_]*$/ -- The variable holding the age identity. Required for an encrypted feed.
+examples:
+  - $type: org.legiblerecords.feed-connection
+    version: 1
+    feed: acme.example/track
+    location: { kind: s3, endpoint: https://storage.acme.example, region: auto, bucket: acme-legible, prefix: feeds/track/ }
+    auth: { method: s3, access_key_id_env: ACME_FEED_KEY_ID, secret_access_key_env: ACME_FEED_SECRET }
+    keys:
+      - publisher: acme.example
+        id: 2026-11
+        alg: ed25519
+        public_key: A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg

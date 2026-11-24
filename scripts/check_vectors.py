@@ -11,6 +11,9 @@ mistake in them is caught before an implementation is tested against it.
 - every key-set case, re-checked under rules written here, gives its expected outcome;
 - every bundle case, opened as a zip and re-checked here (manifest hashes, file list,
   signature, trust), gives its expected outcome;
+- every feed case, re-checked here in the order of spec/feeds.md § Reading a feed
+  (reusing the bundle and signature re-checks), gives its expected index and stream
+  outcomes, and its connection and feed.json are valid records;
 - every outcome code a vector expects is in the table in spec/feeds.md § Outcomes;
 - every signature case verifies, or fails with its expected code, under a
   re-check written here rather than imported from make_vectors.py.
@@ -31,8 +34,10 @@ from pathlib import Path
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-from jsonschema import Draft202012Validator
+from jsonschema import Draft202012Validator, FormatChecker
 from jsonschema.exceptions import SchemaError
+
+from check_fixtures import load_registry
 
 ROOT = Path(__file__).resolve().parent.parent
 YAML_ERRORS = {
@@ -338,48 +343,61 @@ def read_zip(data):
         return None
 
 
-def bundle_outcome(case, entries):
-    """What a reader returns for this bundle: {"status", ...} or {"error": code}."""
-    # manifest.sig first: a bad signature is refused before the bundle's own checks.
-    status = {"status": "unverified"}
-    publisher_pinned = any(p["publisher"] == case["expected_publisher"] for p in case["trust"]["pins"])
-    sig_bytes = entries.get("manifest.sig")
+def signature_outcome(sig_bytes, context, message, trust, expected_publisher, pinned):
+    """What a reader makes of a signature file over `message`: {"status": "verified",
+    "publisher", "key"}, {"status": "unverified"} when there is none, or {"error": code}.
+
+    `trust` is {"pins", "key_sets"}; `pinned` says whether `expected_publisher` has a
+    pinned key, which makes an unsigned file an error.
+    """
     if sig_bytes is None:
-        if publisher_pinned:
-            return {"error": "unsigned_from_pinned_publisher"}
-    else:
-        try:
-            sig = json.loads(sig_bytes)
-        except ValueError:
-            return {"error": "bad_signature_file"}
-        if not isinstance(sig, dict) or set(sig) != {"alg", "publisher", "key", "signature"} or not all(
-            isinstance(v, str) for v in sig.values()
-        ):
-            return {"error": "bad_signature_file"}
-        signature = unb64url(sig["signature"], 64)
-        if signature is None:
-            return {"error": "bad_signature_file"}
-        if sig["alg"] != "ed25519":
-            return {"error": "unknown_alg"}
-        # The keys the reader trusts: pins, and the keys of each key set for its publisher.
-        trusted = [p for p in case["trust"]["pins"]]
-        for ks in case["trust"]["key_sets"]:
-            trusted += [dict(k, publisher=ks["publisher"]) for k in ks["keys"]]
-        found = [k for k in trusted if k["publisher"] == sig["publisher"] and k["id"] == sig["key"]]
-        if not found:
-            return {"error": "unknown_key"}
-        key = found[0]
-        if any(k.get("revoked_at") for k in found):
-            return {"error": "revoked_key"}
-        try:
-            Ed25519PublicKey.from_public_bytes(unb64url(key["public_key"], 32)).verify(
-                signature, SIGNATURE_CONTEXTS["manifest"] + entries.get("manifest.json", b"")
-            )
-        except (InvalidSignature, TypeError, ValueError):
-            return {"error": "bad_signature"}
-        if case["expected_publisher"] is not None and sig["publisher"] != case["expected_publisher"]:
-            return {"error": "publisher_mismatch"}
-        status = {"status": "verified", "publisher": sig["publisher"], "key": sig["key"]}
+        return {"error": "unsigned_from_pinned_publisher"} if pinned else {"status": "unverified"}
+    try:
+        sig = json.loads(sig_bytes)
+    except ValueError:
+        return {"error": "bad_signature_file"}
+    if not isinstance(sig, dict) or set(sig) != {"alg", "publisher", "key", "signature"} or not all(
+        isinstance(v, str) for v in sig.values()
+    ):
+        return {"error": "bad_signature_file"}
+    signature = unb64url(sig["signature"], 64)
+    if signature is None:
+        return {"error": "bad_signature_file"}
+    if sig["alg"] != "ed25519":
+        return {"error": "unknown_alg"}
+    # The keys the reader trusts: pins, and the keys of each key set for its publisher.
+    trusted = [p for p in trust["pins"]]
+    for ks in trust["key_sets"]:
+        trusted += [dict(k, publisher=ks["publisher"]) for k in ks["keys"]]
+    found = [k for k in trusted if k["publisher"] == sig["publisher"] and k["id"] == sig["key"]]
+    if not found:
+        return {"error": "unknown_key"}
+    key = found[0]
+    if any(k.get("revoked_at") for k in found):
+        return {"error": "revoked_key"}
+    try:
+        Ed25519PublicKey.from_public_bytes(unb64url(key["public_key"], 32)).verify(
+            signature, SIGNATURE_CONTEXTS[context] + message
+        )
+    except (InvalidSignature, TypeError, ValueError):
+        return {"error": "bad_signature"}
+    if expected_publisher is not None and sig["publisher"] != expected_publisher:
+        return {"error": "publisher_mismatch"}
+    return {"status": "verified", "publisher": sig["publisher"], "key": sig["key"]}
+
+
+def bundle_outcome(case, entries, pinned=None):
+    """What a reader returns for this bundle: {"status", ...} or {"error": code}.
+
+    `pinned` defaults to whether a pin names the expected publisher.
+    """
+    if pinned is None:
+        pinned = any(p["publisher"] == case["expected_publisher"] for p in case["trust"]["pins"])
+    # manifest.sig first: a bad signature is refused before the bundle's own checks.
+    status = signature_outcome(entries.get("manifest.sig"), "manifest", entries.get("manifest.json", b""),
+                               case["trust"], case["expected_publisher"], pinned)
+    if "error" in status:
+        return status
     # The bundle's own checks.
     try:
         listed = {f["path"]: f["sha256"] for f in json.loads(entries["manifest.json"])["files"]}
@@ -430,6 +448,115 @@ def check_bundles(directory, problems, codes):
     return len(cases)
 
 
+def feed_outcome(case, files):
+    """What a reader returns for this feed: {"index": "ok" or a code, "streams": {id: outcome}}.
+
+    `files` are the feed's files by path. The order is § Reading a feed's.
+    """
+    connection, state = case["connection"], case["state"]
+
+    def refused(code):
+        return {"index": code, "streams": {}}
+
+    if "feed.json" in files and "feed.json.age" in files:
+        return refused("plain_and_encrypted")
+    publisher = connection["feed"].split("/", 1)[0]
+    # Stateless: only the connection's pins. With state: those, approved keys and held key sets.
+    trust = {
+        "pins": list(connection.get("keys", [])) + (list(state["approved"]) if state else []),
+        "key_sets": list(state["key_sets"].values()) if state else [],
+    }
+    pinned = any(p["publisher"] == publisher for p in trust["pins"]) or any(
+        ks["publisher"] == publisher for ks in trust["key_sets"])
+    index_bytes = files.get("feed.json", b"")
+    got = signature_outcome(files.get("feed.sig"), "feed", index_bytes, trust, publisher, pinned)
+    if "error" in got:
+        return refused(got["error"])
+    feed = json.loads(index_bytes)
+    if feed["id"] != connection["feed"] or feed["publisher"] != publisher:
+        return refused("wrong_feed")
+    if state is not None and instant(feed["updated_at"]) < instant(state["feed_updated_at"]):
+        return refused("stale_feed")
+    held = state["streams"] if state is not None else {}
+    listed = {s["id"]: s for s in feed["streams"]}
+    streams = {sid: "withdrawn" for sid in held if sid not in listed}
+    for sid, stream in listed.items():
+        streams[sid] = stream_outcome(stream, held.get(sid), files, feed["id"], trust, publisher, pinned)
+    return {"index": "ok", "streams": streams}
+
+
+def stream_outcome(stream, held, files, feed_id, trust, publisher, pinned):
+    """One stream of a feed: accepted, unchanged or an outcome code."""
+    if held is not None and held["sha256"] == stream["sha256"]:
+        return "unchanged"
+    data = files.get(stream["bundle"])
+    if data is None:
+        return "missing from the vector"
+    if hashlib.sha256(data).hexdigest() != stream["sha256"]:
+        return "download_mismatch"
+    entries = read_zip(data)
+    if entries is None or "manifest.json" not in entries:
+        return "bad_bundle"
+    got = bundle_outcome({"trust": trust, "expected_publisher": publisher}, entries, pinned)
+    if "error" in got:
+        return got["error"]
+    if got["status"] == "verified":
+        manifest = json.loads(entries["manifest.json"])
+        if "published_at" not in manifest:
+            return "missing_published_at"
+        place = manifest.get("feed") or {}
+        if place.get("id") != feed_id:
+            return "wrong_feed"
+        if place.get("stream") != stream["id"]:
+            return "wrong_stream"
+        if held is not None and instant(manifest["published_at"]) <= instant(held["published_at"]):
+            return "replay"
+    return "accepted"
+
+
+def check_feeds(directory, problems, codes):
+    if not directory.is_dir():
+        problems.append(f"{directory.name}: missing")
+        return 0
+    registry = load_registry()
+    validators = {
+        name: Draft202012Validator(
+            json.loads((ROOT / "schemas" / name / "v1.json").read_text()),
+            registry=registry, format_checker=FormatChecker())
+        for name in ("org.legiblerecords.feed", "org.legiblerecords.feed-connection")
+    }
+    cases = sorted(p for p in directory.iterdir() if p.is_dir())
+    for case_dir in cases:
+        where = f"feeds/{case_dir.name}"
+        try:
+            case = json.loads((case_dir / "case.json").read_text())
+            files = {p.relative_to(case_dir / "feed").as_posix(): p.read_bytes()
+                     for p in (case_dir / "feed").rglob("*") if p.is_file()}
+        except (OSError, ValueError) as err:
+            problems.append(f"{where}: needs case.json that parses and a feed/ directory: {err}")
+            continue
+        if set(case) != {"name", "connection", "state", "expect"} or set(case["expect"]) != {"index", "streams"}:
+            problems.append(f"{where}: case.json holds name, connection, state and expect (index, streams)")
+            continue
+        if case["name"] != case_dir.name:
+            problems.append(f"{where}: name must be the directory's")
+        for err in validators["org.legiblerecords.feed-connection"].iter_errors(case["connection"]):
+            problems.append(f"{where}: the connection isn't a valid feed-connection: {err.message}")
+        if "feed.json" in files:
+            for err in validators["org.legiblerecords.feed"].iter_errors(json.loads(files["feed.json"])):
+                problems.append(f"{where}: feed/feed.json isn't a valid feed: {err.message}")
+        expect = case["expect"]
+        outcomes = [expect["index"]] + list(expect["streams"].values())
+        unknown = [o for o in outcomes if o not in codes | {"ok", "accepted", "unchanged", "withdrawn"}]
+        if unknown:
+            problems.append(f"{where}: {unknown} aren't in spec/feeds.md § Outcomes")
+            continue
+        got = feed_outcome(case, files)
+        if got != expect:
+            problems.append(f"{where}: expected {expect}, the re-check gives {got}")
+    return len(cases)
+
+
 def main():
     problems = []
     count = 0
@@ -443,6 +570,7 @@ def main():
     count += check_signatures(ROOT / "vectors" / "signatures.json", problems, codes)
     count += check_key_sets(ROOT / "vectors" / "key-sets", problems, codes)
     count += check_bundles(ROOT / "vectors" / "bundles", problems, codes)
+    count += check_feeds(ROOT / "vectors" / "feeds", problems, codes)
     for p in problems:
         print(f"FAIL {p}")
     print(f"{count} vector cases checked, {len(problems)} problems")

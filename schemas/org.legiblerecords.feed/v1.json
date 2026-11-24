@@ -1,0 +1,108 @@
+{
+  "$id": "https://legiblerecords.org/schemas/org.legiblerecords.feed/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A feed index - the streams a publisher offers one audience, each with its current bundle.",
+  "examples": [
+    {
+      "$type": "org.legiblerecords.feed",
+      "audience": "Monorail, for Track",
+      "id": "acme.example/track",
+      "publisher": "acme.example",
+      "streams": [
+        {
+          "bundle": "bundles/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.zip",
+          "id": "policy-acknowledgments",
+          "published_at": "2026-11-24T10:00:00Z",
+          "record_types": [
+            "tech.monorail.policy.acknowledgment"
+          ],
+          "sha256": "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+          "title": "Policy acknowledgments"
+        }
+      ],
+      "updated_at": "2026-11-24T10:00:00Z",
+      "version": 1
+    }
+  ],
+  "properties": {
+    "$type": {
+      "const": "org.legiblerecords.feed"
+    },
+    "audience": {
+      "description": "Who the feed is for, for people to read. Not enforced; the credential is.",
+      "type": "string"
+    },
+    "id": {
+      "description": "The feed's id, <publisher>/<slug>, stable for the feed's life. A signed bundle's feed.id must match it.",
+      "pattern": "^(?=[^\\/]{1,253}\\/)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+\\/[a-z0-9]+(-[a-z0-9]+)*$",
+      "type": "string"
+    },
+    "publisher": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/domain",
+      "description": "The domain that publishes the feed, and the first part of its id."
+    },
+    "streams": {
+      "description": "The feed's streams. Each has exactly one current bundle.",
+      "items": {
+        "properties": {
+          "bundle": {
+            "description": "The bundle's path from the feed's base, named by its SHA-256.",
+            "pattern": "^bundles\\/[0-9a-f]{64}\\.zip(\\.age)?$",
+            "type": "string"
+          },
+          "id": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
+            "description": "Unique in the feed."
+          },
+          "published_at": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime",
+            "description": "When the publisher made the bundle, as in its manifest."
+          },
+          "record_types": {
+            "description": "The $types the stream carries, so a reader can route it before fetching it.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "sha256": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/sha256",
+            "description": "Of the bundle file as stored, the ciphertext for an encrypted feed."
+          },
+          "title": {
+            "description": "For people.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bundle",
+          "id",
+          "published_at",
+          "record_types",
+          "sha256",
+          "title"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "updated_at": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime",
+      "description": "When the publisher wrote this index. A reader refuses one earlier than the last it accepted."
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "$type",
+    "version",
+    "audience",
+    "id",
+    "publisher",
+    "streams",
+    "updated_at"
+  ],
+  "title": "feed",
+  "type": "object"
+}

@@ -1,0 +1,10 @@
+{
+  "$type": "org.legiblerecords.feed",
+  "version": 1,
+  "comment": "A feed id is <publisher>/<slug>; this one has no publisher.",
+  "id": "track",
+  "publisher": "acme.example",
+  "audience": "Monorail, for Track",
+  "updated_at": "2026-11-24T10:00:00Z",
+  "streams": []
+}

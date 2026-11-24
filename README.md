@@ -15,12 +15,13 @@ Status: draft. Nothing here is stable yet; expect changes until version 1 is pub
 | Path | What it is |
 |---|---|
 | [spec/records.md](spec/records.md) | What every record and bundle contains |
+| [spec/feeds.md](spec/feeds.md) | Feeds a reader polls for bundles, connection files, and the outcome codes readers return |
 | [spec/schema-language.md](spec/schema-language.md) | The short form for writing schemas: its grammar, how it expands to JSON Schema, and how it's generated back |
 | [spec/restricted-yaml.md](spec/restricted-yaml.md) | The YAML subset the short form is written in |
 | [spec/rules.md](spec/rules.md) | The published subset, compatible changes, open value lists, lenses |
-| [schemas/](schemas/) | The shared definitions every type uses, under `org.legiblerecords` |
+| [schemas/](schemas/) | The shared definitions every type uses, and the spec's own types (bundles, key sets, feeds, connection files), under `org.legiblerecords` |
 | [fixtures/](fixtures/) | Records every implementation must accept or reject |
-| [vectors/](vectors/) | Test vectors for the schema language and restricted YAML |
+| [vectors/](vectors/) | Test vectors for the schema language, restricted YAML, signatures, key sets, bundles and feeds |
 
 ## Types and namespaces
 

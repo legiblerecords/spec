@@ -1,0 +1,198 @@
+{
+  "$id": "https://legiblerecords.org/schemas/org.legiblerecords.feed-connection/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "How a reader reaches and trusts a feed. It names environment variables, never secrets, so it can be emailed or committed.",
+  "examples": [
+    {
+      "$type": "org.legiblerecords.feed-connection",
+      "auth": {
+        "access_key_id_env": "ACME_FEED_KEY_ID",
+        "method": "s3",
+        "secret_access_key_env": "ACME_FEED_SECRET"
+      },
+      "feed": "acme.example/track",
+      "keys": [
+        {
+          "alg": "ed25519",
+          "id": "2026-11",
+          "public_key": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg",
+          "publisher": "acme.example"
+        }
+      ],
+      "location": {
+        "bucket": "acme-legible",
+        "endpoint": "https://storage.acme.example",
+        "kind": "s3",
+        "prefix": "feeds/track/",
+        "region": "auto"
+      },
+      "version": 1
+    }
+  ],
+  "properties": {
+    "$type": {
+      "const": "org.legiblerecords.feed-connection"
+    },
+    "age_identity_env": {
+      "description": "The variable holding the age identity. Required for an encrypted feed.",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+      "type": "string"
+    },
+    "auth": {
+      "description": "How the reader authenticates. Every secret is named by an environment variable, in a field ending _env.",
+      "properties": {
+        "access_key_id_env": {
+          "description": "For s3, the variable holding the access key id.",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "type": "string"
+        },
+        "client_id": {
+          "description": "For oauth-client-credentials.",
+          "type": "string"
+        },
+        "client_secret_env": {
+          "description": "For oauth-client-credentials, the variable holding the client secret.",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "type": "string"
+        },
+        "method": {
+          "description": "What the reader sends; the fields a method needs are required for it.",
+          "examples": [
+            "none",
+            "bearer",
+            "oauth-client-credentials",
+            "s3"
+          ],
+          "type": "string"
+        },
+        "resource": {
+          "description": "For oauth-client-credentials, sent as resource.",
+          "type": "string"
+        },
+        "scope": {
+          "description": "For oauth-client-credentials, sent as scope.",
+          "type": "string"
+        },
+        "secret_access_key_env": {
+          "description": "For s3, the variable holding the secret access key.",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "type": "string"
+        },
+        "token": {
+          "description": "Never a value. A connection file holds no secret; token_env names the variable that holds the token.",
+          "type": "null",
+          "x-note": "A literal token here would put a secret in a file meant to be emailed or committed."
+        },
+        "token_env": {
+          "description": "For bearer, the variable holding the token.",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "type": "string"
+        },
+        "token_url": {
+          "description": "For oauth-client-credentials, the token endpoint.",
+          "format": "uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "type": "object"
+    },
+    "feed": {
+      "description": "The feed's id, <publisher>/<slug>. Its feed.json must have this id.",
+      "pattern": "^(?=[^\\/]{1,253}\\/)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+\\/[a-z0-9]+(-[a-z0-9]+)*$",
+      "type": "string"
+    },
+    "keys": {
+      "description": "Pinned keys. Absent or empty means use the publisher's key set, and ask before trusting it the first time.",
+      "items": {
+        "properties": {
+          "alg": {
+            "description": "Only ed25519 is defined.",
+            "examples": [
+              "ed25519"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "description": "The key's id within its publisher.",
+            "pattern": "^[a-z0-9][a-z0-9.-]{0,63}$",
+            "type": "string"
+          },
+          "public_key": {
+            "description": "The 32-byte public key, base64url without padding.",
+            "pattern": "^[A-Za-z0-9_-]{43}$",
+            "type": "string"
+          },
+          "publisher": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/domain"
+          }
+        },
+        "required": [
+          "alg",
+          "id",
+          "public_key",
+          "publisher"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "location": {
+      "description": "Where the feed's files are. The fields a kind needs are required for it, which the reader enforces.",
+      "properties": {
+        "bucket": {
+          "description": "For s3.",
+          "type": "string"
+        },
+        "endpoint": {
+          "description": "For s3, the service's URL.",
+          "format": "uri",
+          "type": "string"
+        },
+        "kind": {
+          "description": "https needs url; s3 needs endpoint, region, bucket and prefix.",
+          "examples": [
+            "https",
+            "s3"
+          ],
+          "type": "string"
+        },
+        "path_style": {
+          "description": "For s3, address the bucket in the path rather than the host name. False when absent.",
+          "type": "boolean"
+        },
+        "prefix": {
+          "description": "For s3, the key prefix the feed's files are under, empty or ending in a slash.",
+          "type": "string"
+        },
+        "region": {
+          "description": "For s3, such as auto.",
+          "type": "string"
+        },
+        "url": {
+          "description": "For https, the feed's base URL, ending in a slash.",
+          "format": "uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "type": "object"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "$type",
+    "version",
+    "auth",
+    "feed",
+    "location"
+  ],
+  "title": "feed-connection",
+  "type": "object"
+}

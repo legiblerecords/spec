@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Generate the signature test vectors, or check they are up to date.
+"""Generate the signature, key-set, bundle and feed test vectors, or check they are up to date.
 
-    python scripts/make_vectors.py           write vectors/*.json
+    python scripts/make_vectors.py           write them under vectors/
     python scripts/make_vectors.py --check   regenerate in memory; fail if a committed file differs
 
 Ed25519 is deterministic, so the output is the same on every run.
@@ -409,13 +409,175 @@ def bundle_cases():
     return files
 
 
+# Feeds. Every feed case reads acme.example/track, with three streams.
+FEED_STREAMS = [STREAM, "access-reviews", "incidents"]
+FEED_OLD = "2026-11-24T09:00:00Z"
+FEED_HELD = "2026-11-24T10:00:00Z"  # when the reader last accepted the feed and its bundles
+FEED_NEW = "2026-11-24T11:00:00Z"
+FEED_LATER = "2026-11-24T12:00:00Z"
+FEED_URL = "https://feeds.acme.example/track/"
+
+
+def feed_bundle(stream, published_at, revision=1, feed_id=FEED_ID, signer=K2026[0], tamper=False):
+    """A stream's bundle zip: one invented record and the shared attachment, signed for the feed."""
+    files = {
+        f"records/note/{stream}.json": stored_json({
+            "$type": "example.note",
+            "version": 1,
+            "title": f"Invented note for {stream}",
+            "body": f"Invented text for a test vector, revision {revision}.",
+        }),
+        ATTACHMENT_PATH: ATTACHMENT,
+    }
+    manifest = bundle_manifest(files, published_at, feed={"id": feed_id, "stream": stream})
+    entries = dict(files, **{"manifest.json": manifest})
+    if signer:
+        entries["manifest.sig"] = stored_json(signature_file(signer, sign(signer, "manifest", manifest)))
+    if tamper:
+        entries[ATTACHMENT_PATH] = ATTACHMENT + b"x"
+    return zip_bytes(entries)
+
+
+def sha256_hex(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def feed_connection():
+    return {
+        "$type": "org.legiblerecords.feed-connection",
+        "version": 1,
+        "feed": FEED_ID,
+        "location": {"kind": "https", "url": FEED_URL},
+        "auth": {"method": "bearer", "token_env": "ACME_FEED_TOKEN"},
+        "keys": [dict(pin(K2026[0]), alg="ed25519")],
+    }
+
+
+def feed_dir(streams, updated_at, signer=K2026[0], extra=None, contents=None):
+    """The files at a feed's base URL, as {path: bytes}.
+
+    `streams` is a list of (stream id, bundle zip bytes). `contents` replaces what is
+    stored at a bundle's path; `extra` adds files beside feed.json.
+    """
+    listed, files = [], {}
+    for stream, data in streams:
+        digest = sha256_hex(data)
+        path = f"bundles/{digest}.zip"
+        published_at = json.loads(read_manifest(data))["published_at"]
+        listed.append({
+            "id": stream,
+            "title": f"Invented stream {stream}",
+            "record_types": ["example.note"],
+            "bundle": path,
+            "sha256": digest,
+            "published_at": published_at,
+        })
+        files[path] = data
+    files.update(contents or {})
+    index = stored_json({
+        "$type": "org.legiblerecords.feed",
+        "version": 1,
+        "id": FEED_ID,
+        "publisher": "acme.example",
+        "audience": "Monorail, for Track",
+        "updated_at": updated_at,
+        "streams": listed,
+    })
+    files["feed.json"] = index
+    if signer:
+        files["feed.sig"] = stored_json(signature_file(signer, sign(signer, "feed", index)))
+    files.update(extra or {})
+    return files
+
+
+def read_manifest(data):
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        return z.read("manifest.json")
+
+
+def reader_state(bundles, updated_at=FEED_HELD):
+    """What a reader holds after accepting `bundles` ({stream: zip bytes}) in a feed at `updated_at`."""
+    return {
+        "feed_updated_at": updated_at,
+        "streams": {
+            stream: {
+                "sha256": sha256_hex(data),
+                "published_at": json.loads(read_manifest(data))["published_at"],
+            }
+            for stream, data in bundles.items()
+        },
+        "key_sets": {"acme.example": key_set(key_entry(*K2026))},
+        "approved": [],
+    }
+
+
+def feed_cases():
+    """Directories under vectors/feeds/: case.json, and feed/ with the files at the feed's base URL."""
+    s0, s1, s2 = FEED_STREAMS
+    held = {s: feed_bundle(s, FEED_HELD) for s in FEED_STREAMS}
+    newer = {s: feed_bundle(s, FEED_NEW, revision=2) for s in FEED_STREAMS}
+    current = list(held.items())
+    cases = []
+
+    def add(name, state, files, index, streams):
+        cases.append((name, state, files, {"index": index, "streams": streams}))
+
+    def every(outcome, **others):
+        return dict({s: outcome for s in FEED_STREAMS}, **others)
+
+    add("first-read", None, feed_dir(current, FEED_NEW), "ok", every("accepted"))
+    add("unchanged", reader_state(held), feed_dir(current, FEED_HELD), "ok", every("unchanged"))
+    add("one-changed", reader_state(held), feed_dir([(s0, newer[s0])] + current[1:], FEED_NEW),
+        "ok", every("unchanged", **{s0: "accepted"}))
+    add("withdrawn", reader_state(held), feed_dir(current[:2], FEED_NEW),
+        "ok", every("unchanged", **{s2: "withdrawn"}))
+    add("stale-index", reader_state(held), feed_dir(current, FEED_OLD), "stale_feed", {})
+    # The reader holds the newer bundle; the feed offers the older signed one again.
+    state = reader_state(dict(held, **{s0: newer[s0]}), updated_at=FEED_NEW)
+    add("replay", state, feed_dir(current, FEED_LATER), "ok", every("unchanged", **{s0: "replay"}))
+    # Different bytes, published at the same instant as the held bundle, written with another offset.
+    same_instant = feed_bundle(s0, "2026-11-24T11:00:00+01:00", revision=2)
+    add("equal-published-at", reader_state(held), feed_dir([(s0, same_instant)] + current[1:], FEED_NEW),
+        "ok", every("unchanged", **{s0: "replay"}))
+    add("swapped-streams", reader_state(held),
+        feed_dir([(s0, newer[s1]), (s1, newer[s0]), (s2, held[s2])], FEED_NEW),
+        "ok", every("unchanged", **{s0: "wrong_stream", s1: "wrong_stream"}))
+    other = feed_bundle(s0, FEED_HELD, feed_id="acme.example/other")
+    add("other-feed", None, feed_dir([(s0, other)] + current[1:], FEED_NEW),
+        "ok", every("accepted", **{s0: "wrong_feed"}))
+    # bundles/<sha256 of held[s0]>.zip holds other bytes.
+    add("download-mismatch", None,
+        feed_dir(current, FEED_NEW, contents={f"bundles/{sha256_hex(held[s0])}.zip": newer[s0]}),
+        "ok", every("accepted", **{s0: "download_mismatch"}))
+    add("unsigned-index-pinned", None, feed_dir(current, FEED_NEW, signer=None),
+        "unsigned_from_pinned_publisher", {})
+    # Refused before anything is decrypted, so an empty feed.json.age is enough.
+    add("plain-and-encrypted", None, feed_dir(current, FEED_NEW, extra={"feed.json.age": b""}),
+        "plain_and_encrypted", {})
+    # A stateless reader can't tell an old bundle from a new one; it passes published_at on.
+    old = feed_bundle(s0, FEED_OLD, revision=0)
+    add("stateless-replay", None, feed_dir([(s0, old)] + current[1:], FEED_NEW), "ok", every("accepted"))
+    bad = feed_bundle(s0, FEED_HELD, tamper=True)
+    add("one-stream-bad-others-fine", None, feed_dir([(s0, bad)] + current[1:], FEED_NEW),
+        "ok", every("accepted", **{s0: "bad_bundle"}))
+
+    files = {}
+    for name, state, feed_files, expect in cases:
+        base = f"feeds/{name}/"
+        files[base + "case.json"] = stored_json({
+            "name": name, "connection": feed_connection(), "state": state, "expect": expect})
+        for path, data in feed_files.items():
+            files[base + "feed/" + path] = data
+    return files
+
+
 # File name under vectors/ -> function returning its JSON value.
 VECTOR_FILES = {
     "signatures.json": signatures,
 }
 
 # Functions returning {path under vectors/: bytes} for vectors kept as directories.
-VECTOR_TREES = [key_set_cases, bundle_cases]
+VECTOR_TREES = [key_set_cases, bundle_cases, feed_cases]
 
 
 def render(value):
