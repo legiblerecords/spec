@@ -22,3 +22,5 @@ jobs:
       - run: python scripts/check_fixtures.py
       - run: python scripts/check_vectors.py
       - run: python scripts/make_vectors.py --check
+      # The vectors must catch a checker with a rule turned off (feed.sig verification among them).
+      - run: python scripts/check_mutations.py

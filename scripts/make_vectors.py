@@ -22,6 +22,7 @@ import hashlib
 import io
 import json
 import sys
+import warnings
 import zipfile
 from pathlib import Path
 
@@ -48,6 +49,15 @@ CONTEXTS = {
 
 def b64url(data):
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def non_canonical(text):
+    """The same bytes as the canonical base64url `text`, spelled with a nonzero unused bit."""
+    alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+    unused = {2: 4, 3: 2}[len(text) % 4]  # 43 chars (32 bytes): 2 unused bits; 86 (64 bytes): 4
+    last = alphabet.index(text[-1])
+    assert last % (1 << unused) == 0
+    return text[:-1] + alphabet[last | 1]
 
 
 def private_key(name):
@@ -138,11 +148,18 @@ def signatures():
                           signature_file(KEY, good, alg="rsa"), "unknown_alg"))
     cases.append(sig_case("bad-base64", "manifest", MANIFEST,
                           signature_file(KEY, "not base64!"), "bad_signature_file"))
+    # alg is checked before signature is decoded: another algorithm's signature has another length.
+    cases.append(sig_case("unknown-alg-other-length", "manifest", MANIFEST,
+                          signature_file(KEY, b64url(bytes(256)), alg="rsa"), "unknown_alg"))
+    # The right 64 bytes, spelled with a nonzero unused bit: one value, one spelling.
+    cases.append(sig_case("non-canonical-signature", "manifest", MANIFEST,
+                          signature_file(KEY, non_canonical(good)), "bad_signature_file"))
     return {"cases": cases}
 
 
 def key_entry(name, created_at, **ends):
-    """A key set entry for the test key `name`; `ends` is retired_at and/or revoked_at."""
+    """A key set entry for the test key `name`; `ends` is retired_at and/or revoked_at, or
+    overrides any other member (id, alg, public_key)."""
     entry = {
         "id": name.split("/", 1)[1],
         "alg": "ed25519",
@@ -167,9 +184,18 @@ def key_set(*entries, publisher="acme.example", updated_at=NEW_AT):
     }
 
 
-def pin(name):
+def pin(name, **override):
+    """A pinned key, as a connection file gives it."""
     publisher, key = name.split("/", 1)
-    return {"publisher": publisher, "id": key, "public_key": public_key(name)}
+    return dict({"publisher": publisher, "id": key, "alg": "ed25519", "public_key": public_key(name)}, **override)
+
+
+def signer(name):
+    """The signer a reader records: publisher and key id, or None for something unsigned."""
+    if name is None:
+        return None
+    publisher, key = name.split("/", 1)
+    return {"publisher": publisher, "key": key}
 
 
 K2024 = ("acme.example/2024-01", "2024-01-01T00:00:00Z")
@@ -238,10 +264,13 @@ def key_set_cases():
     new = key_set(key_entry(*K2026))
     add("drops-held-key", prev, [], new, "key_set_rollback")
 
-    # A revoked key's public key comes back under a fresh id.
+    # A revoked key's public key comes back under a fresh id. The revoked entry keeps its id
+    # but is given other bytes, so that no public key is listed twice (that would be
+    # bad_key_set, step 1) and only the rollback rule catches it.
     prev = held(key_entry(*K2025, **REVOKED), key_entry(*K2026))
-    reborn = dict(key_entry(*K2025), id="2025-06b")
-    new = key_set(key_entry(*K2025, **REVOKED), key_entry(*K2026), reborn, updated_at=HELD_AT)
+    reborn = key_entry(*K2025, id="2025-06b")
+    rebound = key_entry(*K2025, public_key=public_key(K2027[0]), **REVOKED)
+    new = key_set(rebound, key_entry(*K2026), reborn, updated_at=HELD_AT)
     add("revoked-key-new-id", prev, [], new, "key_set_rollback")
 
     # A key id listed twice: the reader refuses the set, whichever entry it would have read.
@@ -261,7 +290,8 @@ def key_set_cases():
     prev = held(key_entry(*K2025))
     new = key_set(key_entry(*K2026), key_entry(*K2025, **REVOKED))
     add("revokes-own-endorser", prev, [], new, "bad_endorsement", signer=K2025[0])
-    add("stateless-revokes-own-endorser", None, [pin(K2025[0])], new, "needs_approval", signer=K2025[0])
+    # A pinned key the new set revokes may not endorse it, stateless or not.
+    add("stateless-revokes-own-endorser", None, [pin(K2025[0])], new, "bad_endorsement", signer=K2025[0])
     new = key_set(key_entry(*K2026), key_entry(*K2025, **RETIRED))
     add("pinned-endorser-bad-signature", None, [pin(K2025[0])], new, "bad_endorsement",
         signer=K2025[0], signed_bytes=b"not the key set")
@@ -275,19 +305,59 @@ def key_set_cases():
     add("endorsement-unknown-alg", prev, [], new, "bad_endorsement", signer=K2025[0], alg="rsa")
     add("endorsement-unparseable", prev, [], new, "bad_endorsement", raw_sig=b"not json\n")
 
+    # Endorsement by a key that is no anchor is no endorsement, with a held set too.
+    prev = held(key_entry(*K2025))
+    new = key_set(key_entry(*K2027), key_entry(*K2025))
+    add("unheld-endorser-new-key", prev, [], new, "needs_approval", signer=K2027[0])
+    prev = held(key_entry(*K2025), key_entry(*K2026))
+    new = key_set(key_entry(*K2025, **RETIRED), key_entry(*K2026))
+    add("unheld-endorser-no-new-key", prev, [], new, "accepted", signer=K2027[0])
+    # A pinned key is an anchor beside the held set: it endorses a set that adds 2027-03.
+    prev = held(key_entry(*K2025))
+    new = key_set(key_entry(*K2027), key_entry(*K2026), key_entry(*K2025))
+    add("pinned-endorser-with-held-set", prev, [pin(K2026[0])], new, "accepted", signer=K2026[0])
+    # The pin for 2026-11 has other bytes than the held set's 2026-11: that id is no anchor.
+    prev = held(key_entry(*K2026))
+    new = key_set(key_entry(*K2027), key_entry(*K2026))
+    add("pin-conflicts-with-held-set", prev, [pin(K2026[0], public_key=public_key(K2027[0]))], new,
+        "needs_approval", signer=K2026[0])
+    # A held key whose alg changed is new, so it needs an endorsement.
+    prev = held(key_entry(*K2026))
+    new = key_set(key_entry(*K2026, alg="ml-dsa-44"))
+    add("alg-changed-unsigned", prev, [], new, "needs_approval")
+
+    # Refused in step 1, before anything else.
+    new = key_set(key_entry(*K2026), key_entry(*K2026, id="2026-11b"))
+    add("same-key-two-ids", None, [pin(K2025[0])], new, "bad_key_set")
+    new = key_set(key_entry(*K2026, public_key=non_canonical(public_key(K2026[0]))))
+    add("non-canonical-public-key", None, [], new, "bad_key_set")
+    add("not-json", None, [pin(K2025[0])], None, "bad_key_set", raw_keys=b"not json\n")
+    add("not-a-key-set", None, [pin(K2025[0])], {"$type": "org.legiblerecords.keys", "version": 1},
+        "bad_key_set")
+    # updated_at more than 24 hours after the reader's clock (2026-12-01T00:00:00Z when not given).
+    prev = held(key_entry(*K2025))
+    new = key_set(key_entry(*K2025, **RETIRED), updated_at="2026-12-02T00:00:01Z")
+    add("updated-at-future", prev, [], new, "bad_key_set")
+    new = key_set(key_entry(*K2025, **RETIRED), updated_at="2026-12-02T00:00:00Z")
+    add("updated-at-24-hours-ahead", prev, [], new, "accepted")
+    new = key_set(key_entry(*K2025, **RETIRED))
+    add("updated-at-future-of-now", prev, [], new, "bad_key_set", now="2026-11-22T23:59:59Z")
+
     files = {}
-    for name, previous, pins, new, expect, signer, how in cases:
-        stored = stored_json(new)
+    for name, previous, pins, new, expect, signer_, how in cases:
+        stored = how.get("raw_keys") or stored_json(new)
         base = f"key-sets/{name}/"
-        files[base + "case.json"] = stored_json(
-            {"name": name, "previous": previous, "pins": pins, "expect": expect})
+        case = {"name": name, "previous": previous, "pins": pins, "expect": expect}
+        if "now" in how:
+            case["now"] = how["now"]
+        files[base + "case.json"] = stored_json(case)
         files[base + "keys.json"] = stored
         if "raw_sig" in how:
             files[base + "keys.sig"] = how["raw_sig"]
-        elif signer:
+        elif signer_:
             signed = how.get("signed_bytes", stored)
             files[base + "keys.sig"] = stored_json(signature_file(
-                signer, sign(signer, how.get("context", "keys"), signed), alg=how.get("alg", "ed25519")))
+                signer_, sign(signer_, how.get("context", "keys"), signed), alg=how.get("alg", "ed25519")))
     return files
 
 
@@ -327,20 +397,27 @@ def bundle_manifest(files, published_at=BUNDLE_PUBLISHED_AT, **extra):
         "published_at": published_at,
         "feed": {"id": FEED_ID, "stream": STREAM},
     }
+    if published_at is None:
+        del manifest["published_at"]
     manifest.update(extra)
     return stored_json(manifest)
 
 
-def zip_bytes(entries):
-    """A zip that is the same bytes on every run: sorted entries, fixed date, deflate."""
+def zip_bytes(entries, repeated=()):
+    """A zip that is the same bytes on every run: sorted entries, fixed date, deflate.
+
+    `repeated` is a list of (path, bytes) written again after the sorted entries, for a
+    zip with two entries of one name.
+    """
     out = io.BytesIO()
-    with zipfile.ZipFile(out, "w") as z:
-        for path in sorted(entries):
+    with zipfile.ZipFile(out, "w") as z, warnings.catch_warnings():
+        warnings.simplefilter("ignore")  # zipfile warns about a repeated name; that is the point
+        for path, data in [(p, entries[p]) for p in sorted(entries)] + list(repeated):
             info = zipfile.ZipInfo(path, date_time=(1980, 1, 1, 0, 0, 0))
             info.compress_type = zipfile.ZIP_DEFLATED
             info.create_system = 3
             info.external_attr = 0o644 << 16
-            z.writestr(info, entries[path], compresslevel=9)
+            z.writestr(info, data, compresslevel=9)
     return out.getvalue()
 
 
@@ -349,15 +426,16 @@ def bundle_cases():
     cases = []
 
     def add(name, trust, expect, expected_publisher="acme.example", signer=None, mutate=None,
-            files=None, sig_override=None):
+            files=None, published_at=BUNDLE_PUBLISHED_AT, now=None, repeated=()):
         files = dict(files or bundle_files())
-        manifest = bundle_manifest(files)
+        manifest = bundle_manifest(files, published_at)
         sig = signature_file(signer, sign(signer, "manifest", manifest)) if signer else None
         entries = dict(files)
         entries["manifest.json"] = mutate(manifest) if mutate else manifest
         if sig:
             entries["manifest.sig"] = stored_json(sig)
-        cases.append((name, trust, expected_publisher, expect, entries))
+        cases.append((name, trust, expected_publisher, expect, entries, now,
+                      [(path, entries[path]) for path in repeated]))
 
     def trust(*sets, pins=()):
         return {"pins": list(pins), "key_sets": list(sets)}
@@ -384,7 +462,7 @@ def bundle_cases():
     cases.append(("tampered-file", trust(active), "acme.example", {"error": "bad_bundle"},
                   dict(entries, **{"manifest.json": manifest,
                                    "manifest.sig": stored_json(signature_file(
-                                       K2026[0], sign(K2026[0], "manifest", manifest)))})))
+                                       K2026[0], sign(K2026[0], "manifest", manifest)))}), None, []))
     # Signed by a key the key set doesn't list.
     add("unknown-key", trust(active), {"error": "unknown_key"}, signer=K2027[0])
     # A file in the zip the manifest doesn't list.
@@ -393,19 +471,50 @@ def bundle_cases():
     cases.append(("extra-unlisted-file", trust(active), "acme.example", {"error": "bad_bundle"},
                   dict(extra, **{"manifest.json": manifest,
                                  "manifest.sig": stored_json(signature_file(
-                                     K2026[0], sign(K2026[0], "manifest", manifest)))})))
+                                     K2026[0], sign(K2026[0], "manifest", manifest)))}), None, []))
     # A valid signature by another publisher's trusted key, on a bundle for acme.example's feed.
     other = key_set(key_entry("other.example/1", "2026-01-01T00:00:00Z"), publisher="other.example")
     add("sig-publisher-mismatch", trust(active, other), {"error": "publisher_mismatch"},
         signer="other.example/1")
 
+    # Two entries named manifest.json, both the same signed manifest: refused by name alone.
+    add("duplicate-manifest-entry", trust(active), {"error": "bad_bundle"}, signer=K2026[0],
+        repeated=["manifest.json"])
+    # The manifest changed after signing and a file changed after the manifest: the signature
+    # is checked first.
+    entries = bundle_files()
+    manifest = bundle_manifest(entries)
+    entries[ATTACHMENT_PATH] = ATTACHMENT + b"x"
+    entries["manifest.sig"] = stored_json(signature_file(K2026[0], sign(K2026[0], "manifest", manifest)))
+    entries["manifest.json"] = manifest.replace(b"2026-11-24T10:00:00Z", b"2026-11-24T11:00:00Z")
+    cases.append(("bad-signature-and-file", trust(active), "acme.example", {"error": "bad_signature"},
+                  entries, None, []))
+    # The key set lists 2026-11 with an alg the reader doesn't know.
+    other_alg = key_set(key_entry(*K2026, alg="ml-dsa-44"))
+    add("key-unknown-alg", trust(other_alg), {"error": "unknown_alg"}, signer=K2026[0])
+    # The pin for 2026-11 has other bytes than the held set's 2026-11: neither is trusted.
+    add("pin-conflicts-with-key-set", trust(active, pins=[pin(K2026[0], public_key=public_key(K2027[0]))]),
+        {"error": "unknown_key"}, signer=K2026[0])
+    # The held set revokes the pinned key's public key under another id.
+    revoked_elsewhere = key_set(key_entry(*K2026, id="2026-11-old", revoked_at="2026-11-25T00:00:00Z"))
+    add("pin-revoked-under-other-id", trust(revoked_elsewhere, pins=[pin(K2026[0])]),
+        {"error": "revoked_key"}, signer=K2026[0])
+    # Trust comes only from a held key set: an unsigned bundle is still refused.
+    add("unsigned-key-set-only", trust(active), {"error": "unsigned_from_pinned_publisher"})
+    # published_at more than 24 hours after the reader's clock.
+    add("published-at-future", trust(active), {"error": "bad_bundle"}, signer=K2026[0],
+        published_at="2026-12-02T00:00:01Z")
+    add("published-at-future-of-now", trust(active), {"error": "bad_bundle"}, signer=K2026[0],
+        now="2026-11-23T09:59:59Z")
+
     files = {}
-    for name, trust_, expected_publisher, expect, entries in cases:
+    for name, trust_, expected_publisher, expect, entries, now, repeated in cases:
         base = f"bundles/{name}/"
-        files[base + "case.json"] = stored_json({
-            "name": name, "trust": trust_,
-            "expected_publisher": expected_publisher, "expect": expect})
-        files[base + "bundle.zip"] = zip_bytes(entries)
+        case = {"name": name, "trust": trust_, "expected_publisher": expected_publisher, "expect": expect}
+        if now is not None:
+            case["now"] = now
+        files[base + "case.json"] = stored_json(case)
+        files[base + "bundle.zip"] = zip_bytes(entries, repeated)
     return files
 
 
@@ -419,6 +528,7 @@ FEED_URL = "https://feeds.acme.example/track/"
 
 
 def feed_bundle(stream, published_at, revision=1, feed_id=FEED_ID, signer=K2026[0], tamper=False):
+    """`published_at` None leaves it out of the manifest."""
     """A stream's bundle zip: one invented record and the shared attachment, signed for the feed."""
     files = {
         f"records/note/{stream}.json": stored_json({
@@ -455,13 +565,16 @@ def feed_connection(pinned=True):
     return connection
 
 
-def feed_dir(streams, updated_at, signer=K2026[0], extra=None, contents=None, paths=None, raw_index=None):
+def feed_dir(streams, updated_at, signer=K2026[0], extra=None, contents=None, paths=None, raw_index=None,
+             published=None, feed_id=FEED_ID, tamper_index=None):
     """The files at a feed's base URL, as {path: bytes}.
 
     `streams` is a list of (stream id, bundle zip bytes). `contents` replaces what is
     stored at a bundle's path; `paths` ({position in streams: path}) replaces the
-    `bundle` path an entry gives; `raw_index` replaces feed.json's bytes, and is signed
-    like them; `extra` adds files beside feed.json.
+    `bundle` path an entry gives; `published` ({position: published_at}) replaces the
+    `published_at` an entry gives (by default its manifest's); `raw_index` replaces
+    feed.json's bytes, and is signed like them; `tamper_index` changes feed.json's bytes
+    after they are signed; `extra` adds files beside feed.json.
     """
     listed, files = [], {}
     for position, (stream, data) in enumerate(streams):
@@ -469,7 +582,7 @@ def feed_dir(streams, updated_at, signer=K2026[0], extra=None, contents=None, pa
         path = f"bundles/{digest}.zip"
         files[path] = data
         path = (paths or {}).get(position, path)
-        published_at = json.loads(read_manifest(data))["published_at"]
+        published_at = (published or {}).get(position) or json.loads(read_manifest(data))["published_at"]
         listed.append({
             "id": stream,
             "title": f"Invented stream {stream}",
@@ -482,7 +595,7 @@ def feed_dir(streams, updated_at, signer=K2026[0], extra=None, contents=None, pa
     index = stored_json({
         "$type": "org.legiblerecords.feed",
         "version": 1,
-        "id": FEED_ID,
+        "id": feed_id,
         "publisher": "acme.example",
         "audience": "Monorail, for Track",
         "updated_at": updated_at,
@@ -493,6 +606,8 @@ def feed_dir(streams, updated_at, signer=K2026[0], extra=None, contents=None, pa
     files["feed.json"] = index
     if signer:
         files["feed.sig"] = stored_json(signature_file(signer, sign(signer, "feed", index)))
+    if tamper_index:
+        files["feed.json"] = tamper_index(index)
     files.update(extra or {})
     return files
 
@@ -502,20 +617,41 @@ def read_manifest(data):
         return z.read("manifest.json")
 
 
-def reader_state(bundles, updated_at=FEED_HELD):
-    """What a reader holds after accepting `bundles` ({stream: zip bytes}) in a feed at `updated_at`."""
+def bundle_signer(data):
+    """The signer a reader records for a bundle zip, or None when it is unsigned."""
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        if "manifest.sig" not in z.namelist():
+            return None
+        sig = json.loads(z.read("manifest.sig"))
+    return {"publisher": sig["publisher"], "key": sig["key"]}
+
+
+def reader_state(bundles, updated_at=FEED_HELD, feed_signer=K2026[0], held_keys=None, approved=()):
+    """What a reader holds after accepting `bundles` ({stream: zip bytes}) in a feed at
+    `updated_at`, signed by `feed_signer`; `held_keys` is the acme.example key set it holds."""
     return {
         "feed_updated_at": updated_at,
+        "feed_signer": signer(feed_signer),
         "streams": {
             stream: {
                 "sha256": sha256_hex(data),
                 "published_at": json.loads(read_manifest(data))["published_at"],
+                "signer": bundle_signer(data),
             }
             for stream, data in bundles.items()
         },
-        "key_sets": {"acme.example": key_set(key_entry(*K2026))},
-        "approved": [],
+        "key_sets": {"acme.example": held_keys or key_set(key_entry(*K2026))},
+        "approved": list(approved),
     }
+
+
+def served_keys(new, signer_=None):
+    """The key-set/ files a publisher serves: keys.json, and keys.sig when `signer_` endorses it."""
+    stored = stored_json(new)
+    files = {"keys.json": stored}
+    if signer_:
+        files["keys.sig"] = stored_json(signature_file(signer_, sign(signer_, "keys", stored)))
+    return files
 
 
 def feed_cases():
@@ -526,9 +662,12 @@ def feed_cases():
     current = list(held.items())
     cases = []
 
-    def add(name, state, files, index, streams, connection=None):
-        cases.append((name, state, files, {"index": index, "streams": streams},
-                      connection or feed_connection()))
+    def add(name, state, files, index, streams, connection=None, keys=None, key_set_=None, now=None):
+        """`keys` is the key-set/ files the publisher serves, and `key_set_` what the reader makes of them."""
+        expect = {"index": index, "streams": streams}
+        if keys is not None:
+            expect["key_set"] = key_set_
+        cases.append((name, state, files, expect, connection or feed_connection(), keys or {}, now))
 
     def every(outcome, **others):
         return dict({s: outcome for s in FEED_STREAMS}, **others)
@@ -579,13 +718,103 @@ def feed_cases():
     add("bundle-path-mismatch", None,
         feed_dir(current, FEED_NEW, paths={0: f"bundles/{sha256_hex(held[s1])}.zip"}), "bad_feed", {})
 
+    # The index and its signature, each case one defect.
+    add("index-tampered", None,
+        feed_dir(current, FEED_NEW, tamper_index=lambda b: b.replace(b"Monorail, for Track", b"Monorail, for Trace")),
+        "bad_signature", {})
+    revoked_2025 = key_set(key_entry(*K2026), key_entry(*K2025, **REVOKED), updated_at=HELD_AT)
+    add("index-signed-by-revoked", reader_state(held, held_keys=revoked_2025),
+        feed_dir(current, FEED_NEW, signer=K2025[0]), "revoked_key", {})
+    # Signed by a key of another publisher that the reader doesn't trust: the publisher is
+    # checked before the key is looked up.
+    add("index-other-publisher", None, feed_dir(current, FEED_NEW, signer="other.example/1"),
+        "publisher_mismatch", {})
+    add("index-unknown-key", None, feed_dir(current, FEED_NEW, signer=K2027[0]), "unknown_key", {})
+    add("index-wrong-id", None, feed_dir(current, FEED_NEW, feed_id="acme.example/other"), "wrong_feed", {})
+    add("plain-feed-lists-zip-age", None,
+        feed_dir(current, FEED_NEW, paths={0: f"bundles/{sha256_hex(held[s0])}.zip.age"}), "bad_feed", {})
+    # The index is dated more than 24 hours after the reader's clock.
+    add("index-future-updated-at", None, feed_dir(current, FEED_NEW), "bad_feed", {},
+        now="2026-11-23T10:59:59Z")
+
+    # One stream, one defect.
+    no_date = feed_bundle(s0, None)
+    add("bundle-missing-published-at", None,
+        feed_dir([(s0, no_date)] + current[1:], FEED_NEW, published={0: FEED_HELD}),
+        "ok", every("accepted", **{s0: "missing_published_at"}))
+    # Unsigned throughout, from a publisher the reader doesn't trust: published_at is still required.
+    unsigned_feed = [(s0, feed_bundle(s0, None, signer=None))] + [
+        (s, feed_bundle(s, FEED_HELD, signer=None)) for s in (s1, s2)]
+    add("unsigned-bundle-missing-published-at", None,
+        feed_dir(unsigned_feed, FEED_NEW, signer=None, published={0: FEED_HELD}),
+        "ok", every("accepted", **{s0: "missing_published_at"}), connection=feed_connection(pinned=False))
+    unsigned = feed_bundle(s0, FEED_NEW, revision=2, signer=None)
+    add("unsigned-bundle-pinned", None, feed_dir([(s0, unsigned)] + current[1:], FEED_NEW),
+        "ok", every("accepted", **{s0: "unsigned_from_pinned_publisher"}))
+    add("unsigned-bundle-key-set-only", reader_state(held), feed_dir([(s0, unsigned)] + current[1:], FEED_NEW),
+        "ok", every("unchanged", **{s0: "unsigned_from_pinned_publisher"}), connection=feed_connection(pinned=False))
+    add("published-at-mismatch", None, feed_dir(current, FEED_NEW, published={0: FEED_NEW}),
+        "ok", every("accepted", **{s0: "bad_bundle"}))
+    future = feed_bundle(s0, "2026-12-02T00:00:01Z")
+    add("bundle-future-published-at", None, feed_dir([(s0, future)] + current[1:], FEED_NEW),
+        "ok", every("accepted", **{s0: "bad_bundle"}))
+
+    # The key set the publisher serves on this poll.
+    with_2027 = key_set(key_entry(*K2027), key_entry(*K2026))
+    add("key-set-rotation-used-at-once", None, feed_dir(current, FEED_NEW, signer=K2027[0]),
+        "ok", every("accepted"), keys=served_keys(with_2027, K2026[0]), key_set_="accepted")
+    add("key-set-pending-key-unknown", None, feed_dir(current, FEED_NEW, signer=K2027[0]),
+        "unknown_key", {}, keys=served_keys(with_2027), key_set_="needs_approval")
+    approved = [dict(pin(K2027[0]))]
+    add("key-set-approved-key", reader_state(held, approved=approved), feed_dir(current, FEED_NEW, signer=K2027[0]),
+        "ok", every("unchanged"), keys=served_keys(with_2027), key_set_="accepted")
+    add("key-set-other-publisher", None, feed_dir(current, FEED_NEW),
+        "ok", every("accepted"),
+        keys=served_keys(key_set(key_entry("other.example/1", "2026-01-01T00:00:00Z"), publisher="other.example")),
+        key_set_="bad_key_set")
+    add("key-set-future-updated-at", None, feed_dir(current, FEED_NEW),
+        "ok", every("accepted"),
+        keys=served_keys(key_set(key_entry(*K2026), updated_at="2026-12-02T00:00:01Z")), key_set_="bad_key_set")
+    # The connection pins nothing and the reader holds nothing, but the publisher serves a
+    # key set: it signs, so an unsigned index from it is refused.
+    add("unsigned-index-served-key-set", None, feed_dir(current, FEED_NEW, signer=None),
+        "unsigned_from_pinned_publisher", {}, connection=feed_connection(pinned=False),
+        keys=served_keys(key_set(key_entry(*K2026))), key_set_="needs_approval")
+    # A set waiting for approval still revokes: the pinned 2025-06 signed the index.
+    pins_2025_2026 = dict(feed_connection(), keys=[pin(K2025[0]), pin(K2026[0])])
+    add("pending-set-revokes-pin", None, feed_dir(current, FEED_NEW, signer=K2025[0]),
+        "revoked_key", {}, connection=pins_2025_2026,
+        keys=served_keys(key_set(key_entry(*K2027), key_entry(*K2026), key_entry(*K2025, **REVOKED))),
+        key_set_="needs_approval")
+
+    # Revocation clears what the key signed.
+    both = key_set(key_entry(*K2026), key_entry(*K2025), updated_at=HELD_AT)
+    revokes_2025 = key_set(key_entry(*K2026), key_entry(*K2025, **REVOKED))
+    by_2025 = dict(held, **{s0: feed_bundle(s0, FEED_HELD, signer=K2025[0])})
+    add("revoked-key-clears-stream", reader_state(by_2025, held_keys=both),
+        feed_dir(list(by_2025.items()), FEED_NEW),
+        "ok", every("unchanged", **{s0: "revoked_key"}), keys=served_keys(revokes_2025), key_set_="accepted")
+    # The same, and the index is then refused: the stream is still forgotten.
+    add("revoked-key-index-refused", reader_state(by_2025, held_keys=both),
+        feed_dir(list(by_2025.items()), FEED_NEW, signer=None),
+        "unsigned_from_pinned_publisher", {s0: "revoked_key"}, keys=served_keys(revokes_2025), key_set_="accepted")
+    # The thief of 2025-06 signed an index dated ahead; once 2025-06 is revoked, the genuine
+    # index isn't stale.
+    add("revoked-key-clears-watermark",
+        reader_state(held, updated_at="2026-12-01T12:00:00Z", feed_signer=K2025[0], held_keys=both),
+        feed_dir(current, FEED_NEW), "ok", every("unchanged"), keys=served_keys(revokes_2025), key_set_="accepted")
+
     files = {}
-    for name, state, feed_files, expect, connection in cases:
+    for name, state, feed_files, expect, connection, keys, now in cases:
         base = f"feeds/{name}/"
-        files[base + "case.json"] = stored_json({
-            "name": name, "connection": connection, "state": state, "expect": expect})
+        case = {"name": name, "connection": connection, "state": state, "expect": expect}
+        if now is not None:
+            case["now"] = now
+        files[base + "case.json"] = stored_json(case)
         for path, data in feed_files.items():
             files[base + "feed/" + path] = data
+        for path, data in keys.items():
+            files[base + "key-set/" + path] = data
     return files
 
 

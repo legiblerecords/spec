@@ -8,27 +8,33 @@ mistake in them is caught before an implementation is tested against it.
 - every expected body is a valid JSON Schema 2020-12 schema;
 - every restricted-YAML case expects either a value or a known error.
 
-- every key-set case, re-checked under rules written here, gives its expected outcome;
-- every bundle case, opened as a zip and re-checked here (manifest hashes, file list,
-  signature, trust), gives its expected outcome;
-- every feed case, re-checked here in the order of spec/feeds.md § Reading a feed
-  (reusing the bundle and signature re-checks), gives its expected index and stream
-  outcomes (an index that isn't a valid feed is bad_feed), and its connection is a
-  valid record;
+- every key-set case, re-checked under rules written here (the key set validated against
+  its schema first, timestamps parsed as strict RFC 3339, the reader's clock from "now"),
+  gives its expected outcome;
+- every bundle case, opened as a zip and re-checked here (entry names, signature in the
+  order of spec/records.md § Reading a signed bundle, trust as in spec/feeds.md § Trust,
+  then manifest hashes and file list), gives its expected outcome;
+- every feed case, re-checked here step by step in the order of spec/feeds.md § Reading a
+  feed (the served key set, revocation, the index, each stream), gives its expected key
+  set, index and stream outcomes, and its connection and reader state are well formed;
 - every outcome code a vector expects is in the table in spec/feeds.md § Outcomes;
-- every signature case verifies, or fails with its expected code, under a
-  re-check written here rather than imported from make_vectors.py.
+- every signature case verifies, or fails with its expected code.
+
+Nothing here is imported from make_vectors.py. LEGIBLE_VECTORS_MUTATION turns a check off,
+for scripts/check_mutations.py.
 
 Needs: pip install jsonschema cryptography
 """
 
 import base64
 import binascii
+import copy
 import hashlib
 import io
-from datetime import datetime
 import json
+import os
 import re
+from datetime import datetime, timedelta, timezone
 import sys
 import zipfile
 from pathlib import Path
@@ -51,6 +57,10 @@ SIGNATURE_CONTEXTS = {
     "keys": b"legible-records/v1 keys\n",
 }
 B64URL = re.compile(r"^[A-Za-z0-9_-]*$")
+# LEGIBLE_VECTORS_MUTATION=<name>[,<name>…] turns a check off, so that scripts/check_mutations.py
+# can show the vectors catch its absence: feed-sig-verify, manifest-sig-verify, zip-names,
+# future-skew, served-key-set, revocation-clears.
+MUTATIONS = set(filter(None, os.environ.get("LEGIBLE_VECTORS_MUTATION", "").split(",")))
 OPTIONS = {"base", "common", "location"}
 
 
@@ -146,11 +156,12 @@ def verify_signature(case):
         isinstance(v, str) for v in sig.values()
     ):
         return "bad_signature_file"
+    # alg before the signature is decoded: another algorithm's signature has another length.
+    if sig["alg"] != "ed25519":
+        return "unknown_alg"
     signature = unb64url(sig["signature"], 64)
     if signature is None:
         return "bad_signature_file"
-    if sig["alg"] != "ed25519":
-        return "unknown_alg"
     public = unb64url(case["public_key"], 32)
     try:
         text = case["message_b64"]
@@ -190,123 +201,248 @@ def check_signatures(path, problems, codes):
     return len(data["cases"])
 
 
-def verify_endorsement(keys_bytes, sig_bytes, endorser):
-    """True when keys.sig is a keys-context signature over keys_bytes by `endorser`.
+DEFAULT_NOW = "2026-12-01T00:00:00Z"  # the reader's clock when a case gives no "now"
+SKEW = timedelta(hours=24)  # a timestamp further ahead of the clock than this is refused
+RFC3339 = re.compile(
+    r"^(\d{4})-(\d{2})-(\d{2})[Tt](\d{2}):(\d{2}):(\d{2})(\.\d+)?([Zz]|([+-])(\d{2}):(\d{2}))$")
 
-    `endorser` is the (publisher, id, public_key) the reader holds for the key
-    the signature names, or None when the reader holds none.
+
+def instant(text):
+    """An RFC 3339 date-time as a point in time, so +01:00 and Z compare as instants.
+
+    Strict: the full date, a time with seconds, and an offset are required, and every
+    field must be in range. Raises ValueError for anything else.
     """
+    match = RFC3339.match(text) if isinstance(text, str) else None
+    if not match:
+        raise ValueError(f"not an RFC 3339 date-time: {text!r}")
+    year, month, day, hour, minute, second = (int(g) for g in match.groups()[:6])
+    fraction = match.group(7)
+    if match.group(8) in ("Z", "z"):
+        offset = timedelta(0)
+    else:
+        hours, minutes = int(match.group(10)), int(match.group(11))
+        if hours > 23 or minutes > 59:
+            raise ValueError(f"offset out of range: {text!r}")
+        offset = timedelta(hours=hours, minutes=minutes) * (1 if match.group(9) == "+" else -1)
+    # RFC 3339 allows a leap second; it is the same instant as the end of that minute.
+    leap = second == 60
+    value = datetime(year, month, day, hour, minute, 59 if leap else second,
+                     int((fraction[1:] + "000000")[:6]) if fraction else 0, tzinfo=timezone(offset))
+    return value + timedelta(seconds=1) if leap else value
+
+
+def too_far_ahead(text, now):
+    """True when the timestamp is more than SKEW after the reader's clock `now`."""
+    return "future-skew" not in MUTATIONS and instant(text) - now > SKEW
+
+
+def key_bytes(text):
+    """A public key's bytes, from canonical base64url, or None."""
+    return unb64url(text, 32)
+
+
+def parse_signature_file(data):
+    """A signature file's members, or None unless it is a JSON object with exactly the
+    four string members. Doesn't look at alg or decode the signature."""
     try:
-        sig = json.loads(sig_bytes)
-    except ValueError:
-        return False
+        sig = json.loads(data)
+    except (ValueError, TypeError):
+        return None
     if not isinstance(sig, dict) or set(sig) != {"alg", "publisher", "key", "signature"}:
-        return False
-    if not all(isinstance(v, str) for v in sig.values()) or sig["alg"] != "ed25519":
-        return False
-    signature = unb64url(sig["signature"], 64)
-    public = unb64url(endorser[2], 32) if endorser else None
-    if signature is None or public is None:
-        return False
+        return None
+    if not all(isinstance(v, str) for v in sig.values()):
+        return None
+    return sig
+
+
+def verifies(public, signature, context, message):
     try:
-        Ed25519PublicKey.from_public_bytes(public).verify(
-            signature, SIGNATURE_CONTEXTS["keys"] + keys_bytes
-        )
-    except InvalidSignature:
+        Ed25519PublicKey.from_public_bytes(public).verify(signature, SIGNATURE_CONTEXTS[context] + message)
+    except (InvalidSignature, TypeError, ValueError):
         return False
     return True
 
 
-def instant(text):
-    """A timestamp as a point in time, so +01:00 and Z compare as instants. Raises ValueError."""
-    if not isinstance(text, str):
-        raise ValueError("not a string")
-    value = datetime.fromisoformat(text[:-1] + "+00:00" if text.endswith("Z") else text)
-    if value.tzinfo is None:
-        raise ValueError("no offset")
-    return value
+class Trust:
+    """The keys a reader trusts, as feeds.md § Trust defines them.
+
+    `anchors` are pinned and approved keys ({publisher, id, alg, public_key}); `held` maps a
+    publisher to the key set the reader holds for it (one accepted on this poll included);
+    `revoking` are served sets waiting for approval, whose revocations count.
+    """
+
+    def __init__(self, anchors, held, revoking=()):
+        self.anchors = list(anchors)
+        self.held = dict(held)
+        self.revoking = list(revoking)
+
+    def trusts_publisher(self, publisher):
+        return publisher in self.held or any(a["publisher"] == publisher for a in self.anchors)
+
+    def sources(self, publisher, key_id):
+        """Every (alg, public key bytes) the reader's sources give for this key id."""
+        found = [(a["alg"], key_bytes(a["public_key"])) for a in self.anchors
+                 if a["publisher"] == publisher and a["id"] == key_id]
+        entry = self.held_entry(publisher, key_id)
+        if entry is not None:
+            found.append((entry["alg"], key_bytes(entry["public_key"])))
+        return found
+
+    def held_entry(self, publisher, key_id):
+        held = self.held.get(publisher)
+        return next((k for k in held["keys"] if k["id"] == key_id), None) if held else None
+
+    def revoked(self, publisher, key_id, public):
+        """True when a held or revoking set revokes this id, or this public key under any id."""
+        sets = [self.held.get(publisher)] + [s for s in self.revoking if s["publisher"] == publisher]
+        return any(k.get("revoked_at") and (k["id"] == key_id or key_bytes(k["public_key"]) == public)
+                   for s in sets if s for k in s["keys"])
+
+    def lookup(self, publisher, key_id):
+        """The key's public bytes, or {"error": code}: records.md § Reading a signed bundle, step 1.5."""
+        found = set(self.sources(publisher, key_id))
+        if not found:
+            return {"error": "unknown_key"}
+        if len(found) > 1:
+            # The sources disagree about this id: none of them is trusted.
+            return {"error": "unknown_key"}
+        alg, public = found.pop()
+        if self.revoked(publisher, key_id, public):
+            return {"error": "revoked_key"}
+        if alg != "ed25519":
+            return {"error": "unknown_alg"}
+        return public
+
+    def signer_revoked(self, signer):
+        """For a signer the reader recorded: has its key been revoked since?"""
+        found = self.sources(signer["publisher"], signer["key"]) or [(None, None)]
+        return any(self.revoked(signer["publisher"], signer["key"], public) for _, public in found)
 
 
-def parse_key_set(data):
-    """A key set's keys by id, or None when it doesn't parse or repeats an id."""
-    try:
-        keys = data["keys"]
-        ids = [k["id"] for k in keys]
-        if not isinstance(data["publisher"], str) or not keys or len(set(ids)) != len(ids):
-            return None
-        instant(data["updated_at"])
-        for k in keys:
-            for end in ("retired_at", "revoked_at"):
-                if end in k:
-                    instant(k[end])
-    except (KeyError, TypeError, ValueError):
-        return None
-    return {k["id"]: k for k in keys}
+def signature_outcome(sig_bytes, context, message, trust, expected_publisher, trusted):
+    """What a reader makes of a signature file over `message`, in the order of records.md
+    § Reading a signed bundle: {"status": "verified", "publisher", "key"}, {"status":
+    "unverified"} when there is none, or {"error": code}.
 
-
-def key_set_outcome(case, keys_bytes, sig_bytes):
-    """What a reader returns for this key set: accepted, needs_approval,
-    bad_endorsement or key_set_rollback."""
-    # Refused before anything else, and before any map by id is built.
-    try:
-        new = json.loads(keys_bytes)
-    except ValueError:
-        return "bad_key_set"
-    new_keys = parse_key_set(new)
-    previous = case["previous"]
-    if new_keys is None or (previous is not None and parse_key_set(previous) is None):
-        return "bad_key_set"
-    publisher = new["publisher"]
-    if previous is not None:
-        if previous["publisher"] != publisher:
-            return "bad_endorsement"
-        # Rollback is refused before any endorsement is looked at.
-        if instant(new["updated_at"]) < instant(previous["updated_at"]):
-            return "key_set_rollback"
-        for old in previous["keys"]:
-            now = new_keys.get(old["id"])
-            if now is None or any(old.get(end) and not now.get(end) for end in ("retired_at", "revoked_at")):
-                return "key_set_rollback"
-            if old.get("revoked_at") and not now.get("revoked_at"):
-                return "key_set_rollback"
-        # A compromised key can't come back under a fresh id.
-        revoked = {k["public_key"]: k["id"] for k in previous["keys"] if k.get("revoked_at")}
-        if any(revoked.get(k["public_key"], k["id"]) != k["id"] for k in new["keys"]):
-            return "key_set_rollback"
-        held = {k["id"]: k for k in previous["keys"]}
-    else:
-        held = {p["id"]: {"public_key": p["public_key"]} for p in case["pins"]
-                if p["publisher"] == publisher}
-    added = [k for k in new["keys"] if held.get(k["id"], {}).get("public_key") != k["public_key"]]
+    `trusted` says whether the reader trusts the expected publisher (feeds.md § Trust),
+    which makes an unsigned file an error.
+    """
     if sig_bytes is None:
-        return "needs_approval" if added else "accepted"
+        return {"error": "unsigned_from_pinned_publisher"} if trusted else {"status": "unverified"}
+    sig = parse_signature_file(sig_bytes)  # 1. the signature file
+    if sig is None:
+        return {"error": "bad_signature_file"}
+    if sig["alg"] != "ed25519":  # 2. alg, before the signature is decoded
+        return {"error": "unknown_alg"}
+    signature = unb64url(sig["signature"], 64)  # 3. a canonical 64-byte signature
+    if signature is None:
+        return {"error": "bad_signature_file"}
+    if expected_publisher is not None and sig["publisher"] != expected_publisher:  # 4.
+        return {"error": "publisher_mismatch"}
+    public = trust.lookup(sig["publisher"], sig["key"])  # 5. the key
+    if isinstance(public, dict):
+        return public
+    skip = f"{context}-sig-verify" in MUTATIONS
+    if not skip and not verifies(public, signature, context, message):  # 6. the signature
+        return {"error": "bad_signature"}
+    return {"status": "verified", "publisher": sig["publisher"], "key": sig["key"]}
+
+
+def key_set_problem(data, validator, now, fetched_from):
+    """Why a key set as served is bad_key_set (records.md § Key sets, step 1), or None."""
     try:
-        sig = json.loads(sig_bytes)
-        name = (sig["publisher"], sig["key"])
-    except (ValueError, KeyError, TypeError):
-        return "bad_endorsement"
-    if name[0] != publisher:
-        return "bad_endorsement"
-    endorser = held.get(name[1])
-    revoked_now = bool(new_keys.get(name[1], {}).get("revoked_at"))
-    if previous is not None:
-        # The key must be in the previous set, neither retired nor revoked there, and
-        # the new set mustn't revoke it: a compromised key can't vouch for its own revocation.
-        if endorser is None or endorser.get("retired_at") or endorser.get("revoked_at") or revoked_now:
-            return "bad_endorsement"
-    elif endorser is None or revoked_now:
-        # Stateless: only a pinned key the new set doesn't revoke counts. Any other
-        # signature is no endorsement at all, not a bad one.
-        return "needs_approval" if added else "accepted"
-    if not verify_endorsement(keys_bytes, sig_bytes, (name[0], name[1], endorser["public_key"])):
-        return "bad_endorsement"
-    return "accepted"
+        new = json.loads(data)
+    except (ValueError, TypeError):
+        return "not JSON"
+    if any(True for _ in validator.iter_errors(new)):
+        return "not a valid org.legiblerecords.keys"
+    ids = [k["id"] for k in new["keys"]]
+    if len(set(ids)) != len(ids):
+        return "a key id twice"
+    raw = [key_bytes(k["public_key"]) for k in new["keys"]]
+    if any(r is None for r in raw):
+        return "a public_key that isn't canonical base64url of 32 bytes"
+    if len(set(raw)) != len(raw):
+        return "one public key under two ids"
+    try:
+        for k in new["keys"]:
+            for field in ("created_at", "retired_at", "revoked_at"):
+                if field in k:
+                    instant(k[field])
+        if too_far_ahead(new["updated_at"], now):
+            return "updated_at too far ahead"
+    except ValueError:
+        return "a timestamp that isn't RFC 3339"
+    if fetched_from is not None and new["publisher"] != fetched_from:
+        return "publisher isn't the domain it was fetched from"
+    return None
+
+
+def decide_key_set(keys_bytes, sig_bytes, previous, anchors, now, validator, fetched_from=None):
+    """What a reader decides about a served key set (records.md § Key sets): (outcome, set),
+    the set being the parsed key set when it is valid, else None.
+
+    `previous` is the set the reader holds, or None; `anchors` its pinned and approved keys.
+    """
+    if key_set_problem(keys_bytes, validator, now, fetched_from) is not None:  # 1. Parse
+        return "bad_key_set", None
+    new = json.loads(keys_bytes)
+    publisher = new["publisher"]
+    new_by_id = {k["id"]: k for k in new["keys"]}
+    if previous is not None:  # 2. Rollback
+        if previous["publisher"] != publisher:
+            return "bad_endorsement", new
+        if instant(new["updated_at"]) < instant(previous["updated_at"]):
+            return "key_set_rollback", new
+        for old in previous["keys"]:
+            now_ = new_by_id.get(old["id"])
+            if now_ is None or any(old.get(end) and not now_.get(end) for end in ("retired_at", "revoked_at")):
+                return "key_set_rollback", new
+        revoked_bytes = {key_bytes(k["public_key"]): k["id"] for k in previous["keys"] if k.get("revoked_at")}
+        if any(revoked_bytes.get(key_bytes(k["public_key"]), k["id"]) != k["id"] for k in new["keys"]):
+            return "key_set_rollback", new
+    trust = Trust([a for a in anchors if a["publisher"] == publisher],
+                  {publisher: previous} if previous is not None else {})
+    added = [k for k in new["keys"]
+             if (k["alg"], key_bytes(k["public_key"])) not in set(trust.sources(publisher, k["id"]))]
+    endorsed = False
+    if sig_bytes is not None:  # 3. Endorsement: every failure is bad_endorsement
+        sig = parse_signature_file(sig_bytes)
+        if sig is None or sig["alg"] != "ed25519" or unb64url(sig["signature"], 64) is None:
+            return "bad_endorsement", new
+        if sig["publisher"] != publisher:
+            return "bad_endorsement", new
+        found = set(trust.sources(publisher, sig["key"]))
+        if len(found) == 1:  # otherwise no anchor, or anchors that disagree: no endorsement
+            alg, public = found.pop()
+            held = trust.held_entry(publisher, sig["key"])
+            if held is not None and (held.get("retired_at") or held.get("revoked_at")):
+                return "bad_endorsement", new
+            if trust.revoked(publisher, sig["key"], public):
+                return "bad_endorsement", new
+            if new_by_id.get(sig["key"], {}).get("revoked_at") or any(
+                    k.get("revoked_at") and key_bytes(k["public_key"]) == public for k in new["keys"]):
+                return "bad_endorsement", new
+            if alg != "ed25519" or not verifies(public, unb64url(sig["signature"], 64), "keys", keys_bytes):
+                return "bad_endorsement", new
+            endorsed = True
+    if endorsed:  # 4.
+        return "accepted", new
+    return ("needs_approval" if added else "accepted"), new  # 5.
+
+
+def keys_validator():
+    return Draft202012Validator(
+        json.loads((ROOT / "schemas" / "org.legiblerecords.keys" / "v1.json").read_text()),
+        registry=load_registry(), format_checker=FormatChecker())
 
 
 def check_key_sets(directory, problems, codes):
     if not directory.is_dir():
         problems.append(f"{directory.name}: missing")
         return 0
+    validator = keys_validator()
     cases = sorted(p for p in directory.iterdir() if p.is_dir())
     names = set()
     for case_dir in cases:
@@ -314,94 +450,72 @@ def check_key_sets(directory, problems, codes):
         try:
             case = json.loads((case_dir / "case.json").read_text())
             keys_bytes = (case_dir / "keys.json").read_bytes()
-            json.loads(keys_bytes)
         except (OSError, ValueError) as err:
-            problems.append(f"{where}: needs case.json and keys.json that parse: {err}")
+            problems.append(f"{where}: needs a case.json that parses, and keys.json: {err}")
             continue
         if case.get("name") != case_dir.name or case["name"] in names:
             problems.append(f"{where}: name must be the directory's and unique")
         names.add(case.get("name"))
-        if set(case) != {"name", "previous", "pins", "expect"}:
-            problems.append(f"{where}: case.json holds name, previous, pins and expect")
+        if not {"name", "previous", "pins", "expect"} <= set(case) <= {"name", "previous", "pins", "expect", "now"}:
+            problems.append(f"{where}: case.json holds name, previous, pins, expect and optionally now")
+            continue
+        if case["previous"] is not None and any(True for _ in validator.iter_errors(case["previous"])):
+            problems.append(f"{where}: previous isn't a valid org.legiblerecords.keys")
+            continue
+        if any(set(p) != {"publisher", "id", "alg", "public_key"} for p in case["pins"]):
+            problems.append(f"{where}: every pin has publisher, id, alg and public_key")
             continue
         if case["expect"] != "accepted" and case["expect"] not in codes:
             problems.append(f"{where}: unknown expectation {case['expect']!r}")
             continue
         sig_path = case_dir / "keys.sig"
         sig_bytes = sig_path.read_bytes() if sig_path.exists() else None
-        got = key_set_outcome(case, keys_bytes, sig_bytes)
+        try:
+            now = instant(case.get("now", DEFAULT_NOW))
+        except ValueError as err:
+            problems.append(f"{where}: {err}")
+            continue
+        got, _ = decide_key_set(keys_bytes, sig_bytes, case["previous"], case["pins"], now, validator)
         if got != case["expect"]:
             problems.append(f"{where}: expected {case['expect']}, the re-check gives {got}")
     return len(cases)
 
 
+BAD_NAMES = "bad zip entry names"
+
+
 def read_zip(data):
-    """A bundle zip's entries as {path: bytes}, or None if it isn't a readable zip."""
+    """A bundle zip's entries as {path: bytes}; BAD_NAMES when two entries share a name or a
+    name is absolute, has a backslash, or has a . or .. segment (records.md § Bundles); None
+    if it isn't a readable zip."""
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as z:
-            return {i.filename: z.read(i) for i in z.infolist() if not i.is_dir()}
+            infos = z.infolist()
+            names = [i.filename for i in infos]
+            if "zip-names" not in MUTATIONS and (len(set(names)) != len(names) or any(
+                    n.startswith("/") or "\\" in n or any(seg in (".", "..") for seg in n.split("/"))
+                    for n in names)):
+                return BAD_NAMES
+            return {i.filename: z.read(i) for i in infos if not i.is_dir()}
     except (zipfile.BadZipFile, OSError):
         return None
 
 
-def signature_outcome(sig_bytes, context, message, trust, expected_publisher, pinned):
-    """What a reader makes of a signature file over `message`: {"status": "verified",
-    "publisher", "key"}, {"status": "unverified"} when there is none, or {"error": code}.
+def bundle_outcome(entries, trust, expected_publisher, trusted, now):
+    """What a reader returns for an opened bundle: {"status", ...} or {"error": code}.
 
-    `trust` is {"pins", "key_sets"}; `pinned` says whether `expected_publisher` has a
-    pinned key, which makes an unsigned file an error.
+    The signature is checked first, then the bundle's own checks (records.md § Reading a
+    signed bundle).
     """
-    if sig_bytes is None:
-        return {"error": "unsigned_from_pinned_publisher"} if pinned else {"status": "unverified"}
-    try:
-        sig = json.loads(sig_bytes)
-    except ValueError:
-        return {"error": "bad_signature_file"}
-    if not isinstance(sig, dict) or set(sig) != {"alg", "publisher", "key", "signature"} or not all(
-        isinstance(v, str) for v in sig.values()
-    ):
-        return {"error": "bad_signature_file"}
-    signature = unb64url(sig["signature"], 64)
-    if signature is None:
-        return {"error": "bad_signature_file"}
-    if sig["alg"] != "ed25519":
-        return {"error": "unknown_alg"}
-    # The keys the reader trusts: pins, and the keys of each key set for its publisher.
-    trusted = [p for p in trust["pins"]]
-    for ks in trust["key_sets"]:
-        trusted += [dict(k, publisher=ks["publisher"]) for k in ks["keys"]]
-    found = [k for k in trusted if k["publisher"] == sig["publisher"] and k["id"] == sig["key"]]
-    if not found:
-        return {"error": "unknown_key"}
-    key = found[0]
-    if any(k.get("revoked_at") for k in found):
-        return {"error": "revoked_key"}
-    try:
-        Ed25519PublicKey.from_public_bytes(unb64url(key["public_key"], 32)).verify(
-            signature, SIGNATURE_CONTEXTS[context] + message
-        )
-    except (InvalidSignature, TypeError, ValueError):
-        return {"error": "bad_signature"}
-    if expected_publisher is not None and sig["publisher"] != expected_publisher:
-        return {"error": "publisher_mismatch"}
-    return {"status": "verified", "publisher": sig["publisher"], "key": sig["key"]}
-
-
-def bundle_outcome(case, entries, pinned=None):
-    """What a reader returns for this bundle: {"status", ...} or {"error": code}.
-
-    `pinned` defaults to whether a pin names the expected publisher.
-    """
-    if pinned is None:
-        pinned = any(p["publisher"] == case["expected_publisher"] for p in case["trust"]["pins"])
-    # manifest.sig first: a bad signature is refused before the bundle's own checks.
     status = signature_outcome(entries.get("manifest.sig"), "manifest", entries.get("manifest.json", b""),
-                               case["trust"], case["expected_publisher"], pinned)
+                               trust, expected_publisher, trusted)
     if "error" in status:
         return status
-    # The bundle's own checks.
     try:
-        listed = {f["path"]: f["sha256"] for f in json.loads(entries["manifest.json"])["files"]}
+        manifest = json.loads(entries["manifest.json"])
+        listed = {f["path"]: f["sha256"] for f in manifest["files"]}
+        if "published_at" in manifest and too_far_ahead(manifest["published_at"], now):
+            return {"error": "bad_bundle"}
     except (KeyError, ValueError, TypeError):
         return {"error": "bad_bundle"}
     present = {path for path in entries if path not in ("manifest.json", "manifest.sig")}
@@ -413,6 +527,14 @@ def bundle_outcome(case, entries, pinned=None):
     return status
 
 
+def open_bundle(data):
+    """A bundle's entries, or {"error": "bad_bundle"} when its zip can't be read as one."""
+    entries = read_zip(data)
+    if entries is None or entries == BAD_NAMES or "manifest.json" not in entries:
+        return {"error": "bad_bundle"}
+    return entries
+
+
 def check_bundles(directory, problems, codes):
     if not directory.is_dir():
         problems.append(f"{directory.name}: missing")
@@ -422,17 +544,17 @@ def check_bundles(directory, problems, codes):
         where = f"bundles/{case_dir.name}"
         try:
             case = json.loads((case_dir / "case.json").read_text())
-            entries = read_zip((case_dir / "bundle.zip").read_bytes())
+            data = (case_dir / "bundle.zip").read_bytes()
         except (OSError, ValueError) as err:
             problems.append(f"{where}: needs case.json that parses and bundle.zip: {err}")
             continue
-        if entries is None or "manifest.json" not in entries:
-            problems.append(f"{where}: bundle.zip isn't a zip with a manifest.json")
+        if read_zip(data) is None:
+            problems.append(f"{where}: bundle.zip isn't a zip")
             continue
-        if set(case) != {"name", "trust", "expected_publisher", "expect"} or set(case["trust"]) != {
-            "pins", "key_sets"
-        }:
-            problems.append(f"{where}: case.json holds name, trust (pins, key_sets), expected_publisher and expect")
+        keys = {"name", "trust", "expected_publisher", "expect"}
+        if not keys <= set(case) <= keys | {"now"} or set(case["trust"]) != {"pins", "key_sets"}:
+            problems.append(f"{where}: case.json holds name, trust (pins, key_sets), expected_publisher, "
+                            "expect and optionally now")
             continue
         if case["name"] != case_dir.name:
             problems.append(f"{where}: name must be the directory's")
@@ -443,7 +565,14 @@ def check_bundles(directory, problems, codes):
         elif expect.get("status") not in ("verified", "unverified"):
             problems.append(f"{where}: expects status verified or unverified, or an error")
             continue
-        got = bundle_outcome(case, entries)
+        trust = Trust(case["trust"]["pins"], {ks["publisher"]: ks for ks in case["trust"]["key_sets"]})
+        entries = open_bundle(data)
+        if "error" in entries:
+            got = entries
+        else:
+            got = bundle_outcome(entries, trust, case["expected_publisher"],
+                                 trust.trusts_publisher(case["expected_publisher"]),
+                                 instant(case.get("now", DEFAULT_NOW)))
         if got != expect:
             problems.append(f"{where}: expected {expect}, the re-check gives {got}")
     return len(cases)
@@ -453,9 +582,10 @@ class VectorProblem(Exception):
     """The vector itself is broken, as opposed to a feed a reader refuses."""
 
 
-def feed_index_problem(index_bytes, validator):
-    """True when a plain feed index is bad_feed: not JSON, not a valid feed, a repeated
-    stream id, or a bundle path that isn't bundles/<its sha256>.zip."""
+def feed_index_problem(index_bytes, validator, now):
+    """True when a plain feed index is bad_feed (feeds.md § Reading a feed, step 5): not JSON,
+    not a valid feed, a repeated stream id, a bundle path that isn't bundles/<its
+    sha256>.zip, or an updated_at too far ahead of the reader's clock."""
     try:
         feed = json.loads(index_bytes)
     except ValueError:
@@ -465,76 +595,142 @@ def feed_index_problem(index_bytes, validator):
     ids = [s["id"] for s in feed["streams"]]
     if len(set(ids)) != len(ids):
         return True
-    return any(s["bundle"] != f"bundles/{s['sha256']}.zip" for s in feed["streams"])
+    if any(s["bundle"] != f"bundles/{s['sha256']}.zip" for s in feed["streams"]):
+        return True
+    try:
+        for s in feed["streams"]:
+            instant(s["published_at"])
+        return too_far_ahead(feed["updated_at"], now)
+    except ValueError:
+        return True
 
 
-def feed_outcome(case, files, validator):
-    """What a reader returns for this feed: {"index": "ok" or a code, "streams": {id: outcome}}.
+def feed_outcome(case, files, served, validators):
+    """What a reader returns for this feed: {"index": "ok" or a code, "streams": {id: outcome}},
+    and "key_set" when the publisher serves one.
 
-    `files` are the feed's files by path, and `validator` checks a feed index against
-    its schema. The order is § Reading a feed's.
+    `files` are the feed's files by path, `served` the key-set/ files. The steps are
+    numbered as in spec/feeds.md § Reading a feed.
     """
-    connection, state = case["connection"], case["state"]
+    connection = case["connection"]
+    state = copy.deepcopy(case["state"])
+    now = instant(case.get("now", DEFAULT_NOW))
+    publisher = connection["feed"].split("/", 1)[0]
+    anchors = list(connection.get("keys", [])) + (list(state["approved"]) if state else [])
+    held = dict(state["key_sets"]) if state else {}
+    result = {"index": None, "streams": {}}
+
+    # 1. The publisher's key set, decided with the held set and the anchors.
+    revoking, served_valid = [], False
+    if "keys.json" in served:
+        outcome, new = decide_key_set(served["keys.json"], served.get("keys.sig"), held.get(publisher),
+                                      anchors, now, validators["keys"], fetched_from=publisher)
+        result["key_set"] = outcome
+        try:
+            served_valid = not any(True for _ in validators["keys"].iter_errors(json.loads(served["keys.json"])))
+        except ValueError:
+            served_valid = False
+        if "served-key-set" not in MUTATIONS:
+            if outcome == "accepted":
+                held[publisher] = new
+            elif outcome == "needs_approval":
+                revoking.append(new)
+    trust = Trust(anchors, held, revoking)
+    trusted = trust.trusts_publisher(publisher) or served_valid
+
+    # 2. Forget what a revoked key signed.
+    if state is not None and "revocation-clears" not in MUTATIONS:
+        for sid, held_stream in list(state["streams"].items()):
+            if held_stream["signer"] is not None and trust.signer_revoked(held_stream["signer"]):
+                del state["streams"][sid]
+                result["streams"][sid] = "revoked_key"
+        if state["feed_signer"] is not None and trust.signer_revoked(state["feed_signer"]):
+            state["feed_updated_at"] = None
 
     def refused(code):
-        return {"index": code, "streams": {}}
+        result["index"] = code
+        return result
 
+    # 3. Fetch the index.
     if "feed.json" in files and "feed.json.age" in files:
         return refused("plain_and_encrypted")
-    publisher = connection["feed"].split("/", 1)[0]
-    # Stateless: only the connection's pins. With state: those, approved keys and held key sets.
-    trust = {
-        "pins": list(connection.get("keys", [])) + (list(state["approved"]) if state else []),
-        "key_sets": list(state["key_sets"].values()) if state else [],
-    }
-    pinned = any(p["publisher"] == publisher for p in trust["pins"]) or any(
-        ks["publisher"] == publisher for ks in trust["key_sets"])
     index_bytes = files.get("feed.json", b"")
-    got = signature_outcome(files.get("feed.sig"), "feed", index_bytes, trust, publisher, pinned)
+    # 4. feed.sig.
+    got = signature_outcome(files.get("feed.sig"), "feed", index_bytes, trust, publisher, trusted)
     if "error" in got:
         return refused(got["error"])
-    if feed_index_problem(index_bytes, validator):
+    # 5. A valid index.
+    if feed_index_problem(index_bytes, validators["feed"], now):
         return refused("bad_feed")
     feed = json.loads(index_bytes)
+    # 6. The right feed.
     if feed["id"] != connection["feed"] or feed["publisher"] != publisher:
         return refused("wrong_feed")
-    if state is not None and instant(feed["updated_at"]) < instant(state["feed_updated_at"]):
+    # 7. Not stale.
+    if state is not None and state["feed_updated_at"] is not None and \
+            instant(feed["updated_at"]) < instant(state["feed_updated_at"]):
         return refused("stale_feed")
-    held = state["streams"] if state is not None else {}
+    result["index"] = "ok"
+
+    held_streams = state["streams"] if state is not None else {}
     listed = {s["id"]: s for s in feed["streams"]}
-    streams = {sid: "withdrawn" for sid in held if sid not in listed}
+    for sid in held_streams:  # 9. Withdrawn: in the state, not in the index.
+        if sid not in listed:
+            result["streams"][sid] = "withdrawn"
     for sid, stream in listed.items():
-        streams[sid] = stream_outcome(stream, held.get(sid), files, feed["id"], trust, publisher, pinned)
-    return {"index": "ok", "streams": streams}
+        if sid in result["streams"]:  # revoked_key in step 2: not checked again on this poll
+            continue
+        result["streams"][sid] = stream_outcome(stream, held_streams.get(sid), files, feed["id"], trust,
+                                                publisher, trusted, now)
+    return result
 
 
-def stream_outcome(stream, held, files, feed_id, trust, publisher, pinned):
-    """One stream of a feed: accepted, unchanged or an outcome code."""
-    if held is not None and held["sha256"] == stream["sha256"]:
+def stream_outcome(stream, held, files, feed_id, trust, publisher, trusted, now):
+    """One stream of a feed, steps 8 and 10 to 13: accepted, unchanged or an outcome code."""
+    if held is not None and held["sha256"] == stream["sha256"]:  # 8.
         return "unchanged"
-    data = files.get(stream["bundle"])
+    data = files.get(stream["bundle"])  # 10.
     if data is None:
         raise VectorProblem(f"stream {stream['id']}: {stream['bundle']} is missing from the vector")
     if hashlib.sha256(data).hexdigest() != stream["sha256"]:
         return "download_mismatch"
-    entries = read_zip(data)
-    if entries is None or "manifest.json" not in entries:
-        return "bad_bundle"
-    got = bundle_outcome({"trust": trust, "expected_publisher": publisher}, entries, pinned)
+    entries = open_bundle(data)
+    if "error" in entries:
+        return entries["error"]
+    got = bundle_outcome(entries, trust, publisher, trusted, now)
     if "error" in got:
         return got["error"]
+    manifest = json.loads(entries["manifest.json"])
+    if "published_at" not in manifest:  # 11. Signed or not.
+        return "missing_published_at"
+    if instant(manifest["published_at"]) != instant(stream["published_at"]):
+        return "bad_bundle"
     if got["status"] == "verified":
-        manifest = json.loads(entries["manifest.json"])
-        if "published_at" not in manifest:
-            return "missing_published_at"
         place = manifest.get("feed") or {}
         if place.get("id") != feed_id:
             return "wrong_feed"
         if place.get("stream") != stream["id"]:
             return "wrong_stream"
+        # 12. Replay.
         if held is not None and instant(manifest["published_at"]) <= instant(held["published_at"]):
             return "replay"
-    return "accepted"
+    return "accepted"  # 13.
+
+
+def state_problem(state):
+    """Why a feed case's reader state isn't in the vectors' format, or None."""
+    if state is None:
+        return None
+    if set(state) != {"feed_updated_at", "feed_signer", "streams", "key_sets", "approved"}:
+        return "state holds feed_updated_at, feed_signer, streams, key_sets and approved"
+    signers = [state["feed_signer"]] + [s.get("signer", "missing") for s in state["streams"].values()]
+    if any(s is not None and (not isinstance(s, dict) or set(s) != {"publisher", "key"}) for s in signers):
+        return "feed_signer and every stream's signer are {publisher, key} or null"
+    if any(set(s) != {"sha256", "published_at", "signer"} for s in state["streams"].values()):
+        return "every stream holds sha256, published_at and signer"
+    if any(set(a) != {"publisher", "id", "alg", "public_key"} for a in state["approved"]):
+        return "every approved key has publisher, id, alg and public_key"
+    return None
 
 
 def check_feeds(directory, problems, codes):
@@ -543,10 +739,12 @@ def check_feeds(directory, problems, codes):
         return 0
     registry = load_registry()
     validators = {
-        name: Draft202012Validator(
+        short: Draft202012Validator(
             json.loads((ROOT / "schemas" / name / "v1.json").read_text()),
             registry=registry, format_checker=FormatChecker())
-        for name in ("org.legiblerecords.feed", "org.legiblerecords.feed-connection")
+        for short, name in (("feed", "org.legiblerecords.feed"),
+                            ("connection", "org.legiblerecords.feed-connection"),
+                            ("keys", "org.legiblerecords.keys"))
     }
     cases = sorted(p for p in directory.iterdir() if p.is_dir())
     for case_dir in cases:
@@ -555,24 +753,36 @@ def check_feeds(directory, problems, codes):
             case = json.loads((case_dir / "case.json").read_text())
             files = {p.relative_to(case_dir / "feed").as_posix(): p.read_bytes()
                      for p in (case_dir / "feed").rglob("*") if p.is_file()}
+            served = {p.name: p.read_bytes() for p in (case_dir / "key-set").glob("*") if p.is_file()}
         except (OSError, ValueError) as err:
             problems.append(f"{where}: needs case.json that parses and a feed/ directory: {err}")
             continue
-        if set(case) != {"name", "connection", "state", "expect"} or set(case["expect"]) != {"index", "streams"}:
-            problems.append(f"{where}: case.json holds name, connection, state and expect (index, streams)")
+        keys = {"name", "connection", "state", "expect"}
+        if not keys <= set(case) <= keys | {"now"}:
+            problems.append(f"{where}: case.json holds name, connection, state, expect and optionally now")
+            continue
+        expect = case["expect"]
+        if set(expect) != {"index", "streams"} | ({"key_set"} if served else set()):
+            problems.append(f"{where}: expect holds index and streams, and key_set exactly when there is key-set/")
+            continue
+        if served and set(served) - {"keys.json", "keys.sig"} or served and "keys.json" not in served:
+            problems.append(f"{where}: key-set/ holds keys.json and optionally keys.sig")
             continue
         if case["name"] != case_dir.name:
             problems.append(f"{where}: name must be the directory's")
-        for err in validators["org.legiblerecords.feed-connection"].iter_errors(case["connection"]):
+        problem = state_problem(case["state"])
+        if problem:
+            problems.append(f"{where}: {problem}")
+            continue
+        for err in validators["connection"].iter_errors(case["connection"]):
             problems.append(f"{where}: the connection isn't a valid feed-connection: {err.message}")
-        expect = case["expect"]
-        outcomes = [expect["index"]] + list(expect["streams"].values())
+        outcomes = [expect["index"], expect.get("key_set", "ok")] + list(expect["streams"].values())
         unknown = [o for o in outcomes if o not in codes | {"ok", "accepted", "unchanged", "withdrawn"}]
         if unknown:
             problems.append(f"{where}: {unknown} aren't in spec/feeds.md § Outcomes")
             continue
         try:
-            got = feed_outcome(case, files, validators["org.legiblerecords.feed"])
+            got = feed_outcome(case, files, served, validators)
         except VectorProblem as err:
             problems.append(f"{where}: {err}")
             continue
