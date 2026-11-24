@@ -18,8 +18,11 @@ Needs: pip install cryptography
 """
 
 import base64
+import hashlib
+import io
 import json
 import sys
+import zipfile
 from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
@@ -288,13 +291,131 @@ def key_set_cases():
     return files
 
 
+BUNDLE_PUBLISHED_AT = "2026-11-24T10:00:00Z"
+FEED_ID = "acme.example/track"
+STREAM = "policy-acknowledgments"
+# Invented record and attachment, shared by every bundle case.
+RECORD_PATH = "records/note/welcome.json"
+RECORD = stored_json({
+    "$type": "example.note",
+    "version": 1,
+    "title": "Welcome to Acme",
+    "body": "Invented text for a test vector.",
+})
+ATTACHMENT = b"invented attachment bytes\n"
+ATTACHMENT_PATH = "files/" + hashlib.sha256(ATTACHMENT).hexdigest()
+
+
+def bundle_files():
+    return {RECORD_PATH: RECORD, ATTACHMENT_PATH: ATTACHMENT}
+
+
+def bundle_manifest(files, published_at=BUNDLE_PUBLISHED_AT, **extra):
+    """manifest.json bytes listing `files` (path -> bytes); the manifest never lists itself."""
+    listed = []
+    for path in sorted(files):
+        entry = {"path": path, "sha256": hashlib.sha256(files[path]).hexdigest()}
+        if path.startswith("records/"):
+            entry.update(record_type="example.note", record_version=1)
+        else:
+            entry["media_type"] = "text/plain"
+        listed.append(entry)
+    manifest = {
+        "$type": "org.legiblerecords.bundle",
+        "version": 1,
+        "files": listed,
+        "published_at": published_at,
+        "feed": {"id": FEED_ID, "stream": STREAM},
+    }
+    manifest.update(extra)
+    return stored_json(manifest)
+
+
+def zip_bytes(entries):
+    """A zip that is the same bytes on every run: sorted entries, fixed date, deflate."""
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w") as z:
+        for path in sorted(entries):
+            info = zipfile.ZipInfo(path, date_time=(1980, 1, 1, 0, 0, 0))
+            info.compress_type = zipfile.ZIP_DEFLATED
+            info.create_system = 3
+            info.external_attr = 0o644 << 16
+            z.writestr(info, entries[path], compresslevel=9)
+    return out.getvalue()
+
+
+def bundle_cases():
+    """Directories under vectors/bundles/: case.json and bundle.zip."""
+    cases = []
+
+    def add(name, trust, expect, expected_publisher="acme.example", signer=None, mutate=None,
+            files=None, sig_override=None):
+        files = dict(files or bundle_files())
+        manifest = bundle_manifest(files)
+        sig = signature_file(signer, sign(signer, "manifest", manifest)) if signer else None
+        entries = dict(files)
+        entries["manifest.json"] = mutate(manifest) if mutate else manifest
+        if sig:
+            entries["manifest.sig"] = stored_json(sig)
+        cases.append((name, trust, expected_publisher, expect, entries))
+
+    def trust(*sets, pins=()):
+        return {"pins": list(pins), "key_sets": list(sets)}
+
+    active = key_set(key_entry(*K2026))
+    verified = {"status": "verified", "publisher": "acme.example", "key": "2026-11"}
+    add("signed-active", trust(active), verified, signer=K2026[0])
+    # Retired before the bundle was published: still verifies, the key was never compromised.
+    retired = key_set(key_entry(*K2026, retired_at="2026-11-24T09:00:00Z"))
+    add("signed-retired", trust(retired), verified, signer=K2026[0])
+    # Revoked after published_at: a revoked key's dates mean nothing, so it is still refused.
+    revoked = key_set(key_entry(*K2026, revoked_at="2026-12-01T00:00:00Z"))
+    add("signed-revoked-backdated", trust(revoked), {"error": "revoked_key"}, signer=K2026[0])
+    add("unsigned", trust(), {"status": "unverified"}, expected_publisher=None)
+    add("unsigned-pinned-publisher", trust(pins=[pin(K2026[0])]),
+        {"error": "unsigned_from_pinned_publisher"})
+    # manifest.json changed after signing; its file hashes are still right.
+    add("tampered-manifest", trust(active), {"error": "bad_signature"}, signer=K2026[0],
+        mutate=lambda m: m.replace(b"2026-11-24T10:00:00Z", b"2026-11-24T11:00:00Z"))
+    # The attachment changed after the manifest was made and signed.
+    entries = bundle_files()
+    manifest = bundle_manifest(entries)
+    entries[ATTACHMENT_PATH] = ATTACHMENT + b"x"
+    cases.append(("tampered-file", trust(active), "acme.example", {"error": "bad_bundle"},
+                  dict(entries, **{"manifest.json": manifest,
+                                   "manifest.sig": stored_json(signature_file(
+                                       K2026[0], sign(K2026[0], "manifest", manifest)))})))
+    # Signed by a key the key set doesn't list.
+    add("unknown-key", trust(active), {"error": "unknown_key"}, signer=K2027[0])
+    # A file in the zip the manifest doesn't list.
+    extra = dict(bundle_files(), **{"records/note/extra.json": RECORD})
+    manifest = bundle_manifest(bundle_files())
+    cases.append(("extra-unlisted-file", trust(active), "acme.example", {"error": "bad_bundle"},
+                  dict(extra, **{"manifest.json": manifest,
+                                 "manifest.sig": stored_json(signature_file(
+                                     K2026[0], sign(K2026[0], "manifest", manifest)))})))
+    # A valid signature by another publisher's trusted key, on a bundle for acme.example's feed.
+    other = key_set(key_entry("other.example/1", "2026-01-01T00:00:00Z"), publisher="other.example")
+    add("sig-publisher-mismatch", trust(active, other), {"error": "publisher_mismatch"},
+        signer="other.example/1")
+
+    files = {}
+    for name, trust_, expected_publisher, expect, entries in cases:
+        base = f"bundles/{name}/"
+        files[base + "case.json"] = stored_json({
+            "name": name, "trust": trust_,
+            "expected_publisher": expected_publisher, "expect": expect})
+        files[base + "bundle.zip"] = zip_bytes(entries)
+    return files
+
+
 # File name under vectors/ -> function returning its JSON value.
 VECTOR_FILES = {
     "signatures.json": signatures,
 }
 
 # Functions returning {path under vectors/: bytes} for vectors kept as directories.
-VECTOR_TREES = [key_set_cases]
+VECTOR_TREES = [key_set_cases, bundle_cases]
 
 
 def render(value):

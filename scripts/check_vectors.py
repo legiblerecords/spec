@@ -9,6 +9,9 @@ mistake in them is caught before an implementation is tested against it.
 - every restricted-YAML case expects either a value or a known error.
 
 - every key-set case, re-checked under rules written here, gives its expected outcome;
+- every bundle case, opened as a zip and re-checked here (manifest hashes, file list,
+  signature, trust), gives its expected outcome;
+- every outcome code a vector expects is in the table in spec/feeds.md § Outcomes;
 - every signature case verifies, or fails with its expected code, under a
   re-check written here rather than imported from make_vectors.py.
 
@@ -17,10 +20,13 @@ Needs: pip install jsonschema cryptography
 
 import base64
 import binascii
+import hashlib
+import io
 from datetime import datetime
 import json
 import re
 import sys
+import zipfile
 from pathlib import Path
 
 from cryptography.exceptions import InvalidSignature
@@ -38,10 +44,23 @@ SIGNATURE_CONTEXTS = {
     "feed": b"legible-records/v1 feed\n",
     "keys": b"legible-records/v1 keys\n",
 }
-SIGNATURE_CODES = {"bad_signature_file", "unknown_alg", "bad_signature"}
-KEY_SET_OUTCOMES = {"accepted", "needs_approval", "bad_endorsement", "key_set_rollback", "bad_key_set"}
 B64URL = re.compile(r"^[A-Za-z0-9_-]*$")
 OPTIONS = {"base", "common", "location"}
+
+
+def outcome_codes():
+    """The codes in the table under "## Outcomes" in spec/feeds.md, or None if it has none."""
+    try:
+        text = (ROOT / "spec" / "feeds.md").read_text()
+    except OSError:
+        return None
+    match = re.search(r"^## Outcomes\s*$(.*?)(?=^## |\Z)", text, re.M | re.S)
+    if not match:
+        return None
+    codes = set()
+    for row in re.findall(r"^\|([^|]*)\|", match.group(1), re.M):
+        codes.update(re.findall(r"`([a-z_]+)`", row))
+    return codes or None
 
 
 def check_schema_language(path, problems):
@@ -138,7 +157,7 @@ def verify_signature(case):
     return "valid"
 
 
-def check_signatures(path, problems):
+def check_signatures(path, problems, codes):
     data = json.loads(path.read_text())
     names = set()
     for i, case in enumerate(data["cases"]):
@@ -156,7 +175,7 @@ def check_signatures(path, problems):
             problems.append(f"{where}: needs public_key, message_b64 and signature_file")
             continue
         expect = case.get("expect")
-        if expect != "valid" and expect not in SIGNATURE_CODES:
+        if expect != "valid" and expect not in codes:
             problems.append(f"{where}: unknown expectation {expect!r}")
             continue
         got = verify_signature(case)
@@ -278,7 +297,7 @@ def key_set_outcome(case, keys_bytes, sig_bytes):
     return "accepted"
 
 
-def check_key_sets(directory, problems):
+def check_key_sets(directory, problems, codes):
     if not directory.is_dir():
         problems.append(f"{directory.name}: missing")
         return 0
@@ -299,7 +318,7 @@ def check_key_sets(directory, problems):
         if set(case) != {"name", "previous", "pins", "expect"}:
             problems.append(f"{where}: case.json holds name, previous, pins and expect")
             continue
-        if case["expect"] not in KEY_SET_OUTCOMES:
+        if case["expect"] != "accepted" and case["expect"] not in codes:
             problems.append(f"{where}: unknown expectation {case['expect']!r}")
             continue
         sig_path = case_dir / "keys.sig"
@@ -310,14 +329,120 @@ def check_key_sets(directory, problems):
     return len(cases)
 
 
+def read_zip(data):
+    """A bundle zip's entries as {path: bytes}, or None if it isn't a readable zip."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            return {i.filename: z.read(i) for i in z.infolist() if not i.is_dir()}
+    except (zipfile.BadZipFile, OSError):
+        return None
+
+
+def bundle_outcome(case, entries):
+    """What a reader returns for this bundle: {"status", ...} or {"error": code}."""
+    # manifest.sig first: a bad signature is refused before the bundle's own checks.
+    status = {"status": "unverified"}
+    publisher_pinned = any(p["publisher"] == case["expected_publisher"] for p in case["trust"]["pins"])
+    sig_bytes = entries.get("manifest.sig")
+    if sig_bytes is None:
+        if publisher_pinned:
+            return {"error": "unsigned_from_pinned_publisher"}
+    else:
+        try:
+            sig = json.loads(sig_bytes)
+        except ValueError:
+            return {"error": "bad_signature_file"}
+        if not isinstance(sig, dict) or set(sig) != {"alg", "publisher", "key", "signature"} or not all(
+            isinstance(v, str) for v in sig.values()
+        ):
+            return {"error": "bad_signature_file"}
+        signature = unb64url(sig["signature"], 64)
+        if signature is None:
+            return {"error": "bad_signature_file"}
+        if sig["alg"] != "ed25519":
+            return {"error": "unknown_alg"}
+        # The keys the reader trusts: pins, and the keys of each key set for its publisher.
+        trusted = [p for p in case["trust"]["pins"]]
+        for ks in case["trust"]["key_sets"]:
+            trusted += [dict(k, publisher=ks["publisher"]) for k in ks["keys"]]
+        found = [k for k in trusted if k["publisher"] == sig["publisher"] and k["id"] == sig["key"]]
+        if not found:
+            return {"error": "unknown_key"}
+        key = found[0]
+        if any(k.get("revoked_at") for k in found):
+            return {"error": "revoked_key"}
+        try:
+            Ed25519PublicKey.from_public_bytes(unb64url(key["public_key"], 32)).verify(
+                signature, SIGNATURE_CONTEXTS["manifest"] + entries.get("manifest.json", b"")
+            )
+        except (InvalidSignature, TypeError, ValueError):
+            return {"error": "bad_signature"}
+        if case["expected_publisher"] is not None and sig["publisher"] != case["expected_publisher"]:
+            return {"error": "publisher_mismatch"}
+        status = {"status": "verified", "publisher": sig["publisher"], "key": sig["key"]}
+    # The bundle's own checks.
+    try:
+        listed = {f["path"]: f["sha256"] for f in json.loads(entries["manifest.json"])["files"]}
+    except (KeyError, ValueError, TypeError):
+        return {"error": "bad_bundle"}
+    present = {path for path in entries if path not in ("manifest.json", "manifest.sig")}
+    if present != set(listed):
+        return {"error": "bad_bundle"}
+    for path, digest in listed.items():
+        if hashlib.sha256(entries[path]).hexdigest() != digest:
+            return {"error": "bad_bundle"}
+    return status
+
+
+def check_bundles(directory, problems, codes):
+    if not directory.is_dir():
+        problems.append(f"{directory.name}: missing")
+        return 0
+    cases = sorted(p for p in directory.iterdir() if p.is_dir())
+    for case_dir in cases:
+        where = f"bundles/{case_dir.name}"
+        try:
+            case = json.loads((case_dir / "case.json").read_text())
+            entries = read_zip((case_dir / "bundle.zip").read_bytes())
+        except (OSError, ValueError) as err:
+            problems.append(f"{where}: needs case.json that parses and bundle.zip: {err}")
+            continue
+        if entries is None or "manifest.json" not in entries:
+            problems.append(f"{where}: bundle.zip isn't a zip with a manifest.json")
+            continue
+        if set(case) != {"name", "trust", "expected_publisher", "expect"} or set(case["trust"]) != {
+            "pins", "key_sets"
+        }:
+            problems.append(f"{where}: case.json holds name, trust (pins, key_sets), expected_publisher and expect")
+            continue
+        if case["name"] != case_dir.name:
+            problems.append(f"{where}: name must be the directory's")
+        expect = case["expect"]
+        if set(expect) == {"error"}:
+            if expect["error"] not in codes:
+                problems.append(f"{where}: {expect['error']} isn't in spec/feeds.md § Outcomes")
+        elif expect.get("status") not in ("verified", "unverified"):
+            problems.append(f"{where}: expects status verified or unverified, or an error")
+            continue
+        got = bundle_outcome(case, entries)
+        if got != expect:
+            problems.append(f"{where}: expected {expect}, the re-check gives {got}")
+    return len(cases)
+
+
 def main():
     problems = []
     count = 0
+    codes = outcome_codes()
+    if codes is None:
+        problems.append("spec/feeds.md has no table under '## Outcomes'")
+        codes = set()
     for path in sorted(ROOT.glob("vectors/schema-language*.json")):
         count += check_schema_language(path, problems)
     count += check_restricted_yaml(ROOT / "vectors" / "restricted-yaml.json", problems)
-    count += check_signatures(ROOT / "vectors" / "signatures.json", problems)
-    count += check_key_sets(ROOT / "vectors" / "key-sets", problems)
+    count += check_signatures(ROOT / "vectors" / "signatures.json", problems, codes)
+    count += check_key_sets(ROOT / "vectors" / "key-sets", problems, codes)
+    count += check_bundles(ROOT / "vectors" / "bundles", problems, codes)
     for p in problems:
         print(f"FAIL {p}")
     print(f"{count} vector cases checked, {len(problems)} problems")

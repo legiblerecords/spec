@@ -146,7 +146,7 @@ That last rule has a cost the spec accepts: whoever controls the server can mark
 
 A reader with no previous key set can still be given **pins**: keys it holds from its configuration, each a publisher, a key id and a public key. A stateless reader keeps nothing between runs, so its pins stand in for the previous set, and it **cannot detect a rollback**: it has no `updated_at` or end dates to compare, so an old key set it is shown looks current. Its pins are its only anchor, and a pinned key that the publisher has since retired can still endorse. It accepts a key set when `keys.sig` is by a pinned key that the new set doesn't revoke; the new set may retire it, as in a rotation. If the signature names a pinned key and doesn't verify, the key set is `bad_endorsement`. A signature by a key that isn't pinned, or that the new set revokes, is no endorsement: the key set is `needs_approval` if it has a new key, so a second rotation waits for a person to update the pins, and accepted if it has none.
 
-The outcome codes `bad_key_set`, `bad_endorsement`, `needs_approval` and `key_set_rollback` are defined here, for the table of outcomes that feeds.md will carry.
+The outcome codes `bad_key_set`, `bad_endorsement`, `needs_approval` and `key_set_rollback` are defined here, and listed with the rest in [feeds.md § Outcomes](feeds.md#outcomes).
 
 Readers fetch the key set whenever the publisher serves one, including readers with pinned keys, so that rotation and revocation reach them. Pinned keys are where that chain starts, not a replacement for it.
 
@@ -160,6 +160,8 @@ In addition to the checks above:
 
 1. If `manifest.sig` is present, find the key named by `publisher` and `key` among the keys the reader trusts (pinned, or in the publisher's accepted [key set](#key-sets)), and verify the signature over the context string and `manifest.json`'s bytes. A signature that doesn't verify, names an unknown algorithm, names an unknown key, or was made by a revoked key is an error, not a downgrade to unverified.
 2. If it is absent, the bundle is **unverified**. A reader says so wherever it shows the bundle, and may refuse it by policy. A reader that has pinned a key for the bundle's publisher refuses an unsigned bundle from it.
+
+[vectors/bundles/](../vectors/bundles/) holds the cases, one directory each: `bundle.zip`, and `case.json` with `name`, `trust` (`pins` and `key_sets`, what the reader trusts), `expected_publisher` (the feed's publisher, or `null`) and `expect` (`{ status, publisher, key }` for a verified or unverified bundle, or `{ error }` with an outcome code). A signature by a key that its key set has revoked is refused even when the revocation is dated after `published_at`.
 
 ### Encrypted bundles
 
