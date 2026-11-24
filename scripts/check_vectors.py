@@ -17,6 +17,7 @@ Needs: pip install jsonschema cryptography
 
 import base64
 import binascii
+from datetime import datetime
 import json
 import re
 import sys
@@ -38,7 +39,7 @@ SIGNATURE_CONTEXTS = {
     "keys": b"legible-records/v1 keys\n",
 }
 SIGNATURE_CODES = {"bad_signature_file", "unknown_alg", "bad_signature"}
-KEY_SET_OUTCOMES = {"accepted", "needs_approval", "bad_endorsement", "key_set_rollback"}
+KEY_SET_OUTCOMES = {"accepted", "needs_approval", "bad_endorsement", "key_set_rollback", "bad_key_set"}
 B64URL = re.compile(r"^[A-Za-z0-9_-]*$")
 OPTIONS = {"base", "common", "location"}
 
@@ -191,18 +192,51 @@ def verify_endorsement(keys_bytes, sig_bytes, endorser):
     return True
 
 
+def instant(text):
+    """A timestamp as a point in time, so +01:00 and Z compare as instants. Raises ValueError."""
+    if not isinstance(text, str):
+        raise ValueError("not a string")
+    value = datetime.fromisoformat(text[:-1] + "+00:00" if text.endswith("Z") else text)
+    if value.tzinfo is None:
+        raise ValueError("no offset")
+    return value
+
+
+def parse_key_set(data):
+    """A key set's keys by id, or None when it doesn't parse or repeats an id."""
+    try:
+        keys = data["keys"]
+        ids = [k["id"] for k in keys]
+        if not isinstance(data["publisher"], str) or not keys or len(set(ids)) != len(ids):
+            return None
+        instant(data["updated_at"])
+        for k in keys:
+            for end in ("retired_at", "revoked_at"):
+                if end in k:
+                    instant(k[end])
+    except (KeyError, TypeError, ValueError):
+        return None
+    return {k["id"]: k for k in keys}
+
+
 def key_set_outcome(case, keys_bytes, sig_bytes):
     """What a reader returns for this key set: accepted, needs_approval,
     bad_endorsement or key_set_rollback."""
-    new = json.loads(keys_bytes)
+    # Refused before anything else, and before any map by id is built.
+    try:
+        new = json.loads(keys_bytes)
+    except ValueError:
+        return "bad_key_set"
+    new_keys = parse_key_set(new)
     previous = case["previous"]
+    if new_keys is None or (previous is not None and parse_key_set(previous) is None):
+        return "bad_key_set"
     publisher = new["publisher"]
-    new_keys = {k["id"]: k for k in new["keys"]}
     if previous is not None:
         if previous["publisher"] != publisher:
             return "bad_endorsement"
         # Rollback is refused before any endorsement is looked at.
-        if new["updated_at"] < previous["updated_at"]:
+        if instant(new["updated_at"]) < instant(previous["updated_at"]):
             return "key_set_rollback"
         for old in previous["keys"]:
             now = new_keys.get(old["id"])

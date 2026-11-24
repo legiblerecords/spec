@@ -235,6 +235,19 @@ def key_set_cases():
     new = key_set(key_entry(*K2026))
     add("drops-held-key", prev, [], new, "key_set_rollback")
 
+    # A key id listed twice: the reader refuses the set, whichever entry it would have read.
+    prev = held(key_entry(*K2025, **REVOKED), key_entry(*K2026))
+    new = key_set(key_entry(*K2025), key_entry(*K2025, **REVOKED), key_entry(*K2026),
+                  updated_at=HELD_AT)
+    add("duplicate-id-unrevokes", prev, [], new, "bad_key_set")
+    add("duplicate-id-stateless", None, [pin(K2025[0])], new, "bad_key_set")
+
+    # updated_at is compared as an instant: 09:30 at -02:00 is later than 10:00Z, though
+    # it sorts earlier as text.
+    prev = held(key_entry(*K2025), updated_at="2026-11-24T10:00:00Z")
+    new = key_set(key_entry(*K2026), key_entry(*K2025, **RETIRED), updated_at="2026-11-24T09:30:00-02:00")
+    add("updated-at-with-offset", prev, [], new, "accepted", signer=K2025[0])
+
     # More endorsement cases.
     prev = held(key_entry(*K2025))
     new = key_set(key_entry(*K2026), key_entry(*K2025, **REVOKED))
