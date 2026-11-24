@@ -384,15 +384,35 @@ def bundle_files():
     return {RECORD_PATH: RECORD, ATTACHMENT_PATH: ATTACHMENT}
 
 
-def bundle_manifest(files, published_at=BUNDLE_PUBLISHED_AT, **extra):
-    """manifest.json bytes listing `files` (path -> bytes); the manifest never lists itself."""
+def record_set_lines(records):
+    """A record set's bytes: canonical lines, sorted by id (records.md § Record sets)."""
+    return b"".join(canonical_line(r) for r in sorted(records, key=lambda r: r["id"].encode()))
+
+
+def canonical_line(record):
+    return json.dumps(record, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode() + b"\n"
+
+
+def bundle_manifest(files, published_at=BUNDLE_PUBLISHED_AT, entries=None, **extra):
+    """manifest.json bytes listing `files` (path -> bytes); the manifest never lists itself.
+
+    A record's type and version come from the record; a record set's from its first line,
+    with `count` its number of lines. `entries` maps a path to fields that replace or add
+    to its entry, for a manifest that is wrong on purpose.
+    """
     listed = []
     for path in sorted(files):
         entry = {"path": path, "sha256": hashlib.sha256(files[path]).hexdigest()}
-        if path.startswith("records/"):
-            entry.update(record_type="example.note", record_version=1)
+        if path.endswith(".ndjson"):
+            lines = [line for line in files[path].lstrip("\ufeff".encode()).replace(b"\r", b"").split(b"\n") if line]
+            first = json.loads(lines[0])
+            entry.update(record_type=first["$type"], record_version=first["version"], count=len(lines))
+        elif path.startswith("records/"):
+            record = json.loads(files[path])
+            entry.update(record_type=record["$type"], record_version=record["version"])
         else:
             entry["media_type"] = "text/plain"
+        entry.update((entries or {}).get(path, {}))
         listed.append(entry)
     manifest = {
         "$type": "org.legiblerecords.bundle",
@@ -430,9 +450,9 @@ def bundle_cases():
     cases = []
 
     def add(name, trust, expect, expected_publisher="acme.example", signer=None, mutate=None,
-            files=None, published_at=BUNDLE_PUBLISHED_AT, now=None, repeated=()):
+            files=None, published_at=BUNDLE_PUBLISHED_AT, now=None, repeated=(), entries=None):
         files = dict(files or bundle_files())
-        manifest = bundle_manifest(files, published_at)
+        manifest = bundle_manifest(files, published_at, entries)
         sig = signature_file(signer, sign(signer, "manifest", manifest)) if signer else None
         entries = dict(files)
         entries["manifest.json"] = mutate(manifest) if mutate else manifest
@@ -514,6 +534,53 @@ def bundle_cases():
         published_at="2026-12-02T00:00:01Z")
     add("published-at-future-of-now", trust(active), {"error": "bad_bundle"}, signer=K2026[0],
         now="2026-11-23T09:59:59Z")
+
+    # Record sets (records.md § Record sets). Unsigned unless said otherwise.
+    def alert(id_, version=1, **extra):
+        return dict({"$type": "example.alert", "version": version, "id": id_, "repo": id_.split("-")[0],
+                     "severity": "high"}, **extra)
+
+    alerts = [alert("api-12"), alert("api-7"), alert("web-3")]
+    sorted_set = record_set_lines(alerts)
+    unverified = {"status": "unverified"}
+    bad = {"error": "bad_bundle"}
+
+    def with_set(data, path="records/alert.ndjson", **more):
+        return dict(bundle_files(), **{path: data}, **more)
+
+    add("record-set-valid", trust(), unverified, expected_publisher=None, files=with_set(sorted_set))
+    add("record-set-signed", trust(active), verified, signer=K2026[0], files=with_set(sorted_set))
+    # v2 alerts in the set, a v1 alert under another key in a per-record file.
+    add("record-set-mixed-versions", trust(), unverified, expected_publisher=None,
+        files=with_set(record_set_lines([alert("api-12", 2), alert("api-7", 2)]),
+                       **{"records/alert/web-3.json": stored_json(alert("web-3"))}))
+    add("unicode-text", trust(), unverified, expected_publisher=None,
+        files=with_set(record_set_lines([alert("api-1", title="Café 漢字")])))
+    add("unsorted-lines", trust(), bad, expected_publisher=None,
+        files=with_set(canonical_line(alerts[1]) + canonical_line(alerts[0]) + canonical_line(alerts[2])))
+    add("repeated-id", trust(), bad, expected_publisher=None,
+        files=with_set(canonical_line(alerts[0]) + canonical_line(alert("api-12", severity="low"))))
+    add("missing-id", trust(), bad, expected_publisher=None,
+        files=with_set(canonical_line({k: v for k, v in alerts[0].items() if k != "id"})))
+    add("id-not-a-key", trust(), bad, expected_publisher=None,
+        files=with_set(canonical_line(alert("API-1"))))
+    add("non-canonical-line", trust(), bad, expected_publisher=None,
+        files=with_set(json.dumps(alerts[0], sort_keys=True).encode() + b"\n" + canonical_line(alerts[1])))
+    add("crlf-lines", trust(), bad, expected_publisher=None, files=with_set(sorted_set.replace(b"\n", b"\r\n")))
+    add("blank-line", trust(), bad, expected_publisher=None,
+        files=with_set(canonical_line(alerts[0]) + b"\n" + canonical_line(alerts[1])))
+    add("no-final-newline", trust(), bad, expected_publisher=None, files=with_set(sorted_set[:-1]))
+    add("bom", trust(), bad, expected_publisher=None, files=with_set("\ufeff".encode() + sorted_set))
+    add("count-wrong", trust(), bad, expected_publisher=None, files=with_set(sorted_set),
+        entries={"records/alert.ndjson": {"count": 4}})
+    add("count-on-record-file", trust(), bad, expected_publisher=None, files=bundle_files(),
+        entries={RECORD_PATH: {"count": 1}})
+    add("wrong-type-line", trust(), bad, expected_publisher=None,
+        files=with_set(record_set_lines([alerts[0], dict(alerts[1], **{"$type": "example.other"})])))
+    add("key-in-set-and-file", trust(), bad, expected_publisher=None,
+        files=with_set(sorted_set, **{"records/alert/api-12.json": stored_json(alerts[0])}))
+    add("set-wrong-path", trust(), bad, expected_publisher=None,
+        files=with_set(sorted_set, path="records/alerts/all.ndjson"))
 
     files = {}
     for name, trust_, expected_publisher, expect, entries, now, repeated in cases:
