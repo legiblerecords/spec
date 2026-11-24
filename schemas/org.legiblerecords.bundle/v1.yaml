@@ -5,6 +5,12 @@ description: The manifest of a bundle - every file it holds, with its hash.
 fields:
   produced_by?: common.produced_by
   source?: common.source
+  published_at?: common.datetime -- When the publisher made this bundle. Required when the bundle is in a feed.
+  feed?:
+    description: The feed and stream this bundle was published for.
+    fields:
+      id: /^(?=[^\/]{1,253}\/)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+\/[a-z0-9]+(-[a-z0-9]+)*$/ -- The feed's id, <publisher>/<slug>.
+      stream: slug -- The stream within the feed.
   files:
     items:
       fields:

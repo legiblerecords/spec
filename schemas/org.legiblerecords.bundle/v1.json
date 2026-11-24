@@ -6,6 +6,24 @@
     "$type": {
       "const": "org.legiblerecords.bundle"
     },
+    "feed": {
+      "description": "The feed and stream this bundle was published for.",
+      "properties": {
+        "id": {
+          "description": "The feed's id, <publisher>/<slug>.",
+          "pattern": "^(?=[^/]{1,253}/)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+/[a-z0-9]+(-[a-z0-9]+)*$",
+          "type": "string"
+        },
+        "stream": {
+          "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug"
+        }
+      },
+      "required": [
+        "id",
+        "stream"
+      ],
+      "type": "object"
+    },
     "files": {
       "items": {
         "properties": {
@@ -40,6 +58,9 @@
     },
     "produced_by": {
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/produced_by"
+    },
+    "published_at": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime"
     },
     "source": {
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/source"
