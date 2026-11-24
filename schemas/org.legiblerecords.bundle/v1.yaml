@@ -9,7 +9,7 @@ fields:
   feed?:
     description: The feed and stream this bundle was published for.
     fields:
-      id: /^(?=[^\/]{1,253}\/)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+\/[a-z0-9]+(-[a-z0-9]+)*$/ -- The feed's id, <publisher>/<slug>.
+      id: common.feedId -- The feed's id, <publisher>/<slug>.
       stream: slug -- The stream within the feed.
   files:
     items:

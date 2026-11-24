@@ -3,7 +3,7 @@ version: 1
 title: feed-connection
 description: How a reader reaches and trusts a feed. It names environment variables, never secrets, so it can be emailed or committed.
 fields:
-  feed: /^(?=[^\/]{1,253}\/)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+\/[a-z0-9]+(-[a-z0-9]+)*$/ -- The feed's id, <publisher>/<slug>. Its feed.json must have this id.
+  feed: common.feedId -- The feed's id, <publisher>/<slug>. Its feed.json must have this id.
   location:
     description: Where the feed's files are. The fields a kind needs are required for it, which the reader enforces.
     fields:

@@ -3,7 +3,7 @@ version: 1
 title: feed
 description: A feed index - the streams a publisher offers one audience, each with its current bundle.
 fields:
-  id: /^(?=[^\/]{1,253}\/)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+\/[a-z0-9]+(-[a-z0-9]+)*$/ -- The feed's id, <publisher>/<slug>, stable for the feed's life. A signed bundle's feed.id must match it.
+  id: common.feedId -- The feed's id, <publisher>/<slug>, stable for the feed's life. A signed bundle's feed.id must match it.
   publisher: common.domain -- The domain that publishes the feed, and the first part of its id.
   audience: string -- Who the feed is for, for people to read. Not enforced; the credential is.
   updated_at: common.datetime -- When the publisher wrote this index. A reader refuses one earlier than the last it accepted.

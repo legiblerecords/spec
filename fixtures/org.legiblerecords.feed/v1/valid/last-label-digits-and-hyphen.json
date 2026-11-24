@@ -1,0 +1,10 @@
+{
+  "$type": "org.legiblerecords.feed",
+  "version": 1,
+  "comment": "A last label of digits and a hyphen isn't all digits.",
+  "id": "acme.1-2/track",
+  "publisher": "acme.1-2",
+  "audience": "Monorail, for Track",
+  "updated_at": "2026-11-24T10:00:00Z",
+  "streams": []
+}

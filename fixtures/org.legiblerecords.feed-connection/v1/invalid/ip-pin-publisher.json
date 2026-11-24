@@ -1,0 +1,22 @@
+{
+  "$type": "org.legiblerecords.feed-connection",
+  "version": 1,
+  "comment": "A pinned key's publisher can't be an IP address.",
+  "feed": "acme.example/track",
+  "location": {
+    "kind": "https",
+    "url": "https://feeds.acme.example/track/"
+  },
+  "auth": {
+    "method": "bearer",
+    "token_env": "ACME_FEED_TOKEN"
+  },
+  "keys": [
+    {
+      "publisher": "10.0.0.1",
+      "id": "2026-11",
+      "alg": "ed25519",
+      "public_key": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg"
+    }
+  ]
+}

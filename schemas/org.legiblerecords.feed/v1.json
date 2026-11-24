@@ -33,9 +33,8 @@
       "type": "string"
     },
     "id": {
-      "description": "The feed's id, <publisher>/<slug>, stable for the feed's life. A signed bundle's feed.id must match it.",
-      "pattern": "^(?=[^\\/]{1,253}\\/)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+\\/[a-z0-9]+(-[a-z0-9]+)*$",
-      "type": "string"
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/feedId",
+      "description": "The feed's id, <publisher>/<slug>, stable for the feed's life. A signed bundle's feed.id must match it."
     },
     "publisher": {
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/domain",

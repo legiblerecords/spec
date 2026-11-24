@@ -120,9 +120,8 @@
       "type": "object"
     },
     "feed": {
-      "description": "The feed's id, <publisher>/<slug>. Its feed.json must have this id.",
-      "pattern": "^(?=[^\\/]{1,253}\\/)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+\\/[a-z0-9]+(-[a-z0-9]+)*$",
-      "type": "string"
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/feedId",
+      "description": "The feed's id, <publisher>/<slug>. Its feed.json must have this id."
     },
     "keys": {
       "description": "Pinned keys. Absent or empty means use the publisher's key set, and ask before trusting it the first time.",

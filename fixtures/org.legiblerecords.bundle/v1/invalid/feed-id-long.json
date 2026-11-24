@@ -1,0 +1,11 @@
+{
+  "$type": "org.legiblerecords.bundle",
+  "version": 1,
+  "comment": "A feed id is at most 317 characters.",
+  "files": [],
+  "published_at": "2026-11-24T10:00:00Z",
+  "feed": {
+    "id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
+    "stream": "policy-acknowledgments"
+  }
+}
