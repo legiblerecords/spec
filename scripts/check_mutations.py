@@ -25,6 +25,8 @@ MUTATIONS = {
     "future-skew": "timestamps far ahead of the clock are allowed",
     "served-key-set": "the key set served on a poll is decided but never used",
     "revocation-clears": "a revocation doesn't clear what the key signed",
+    "forget-unaccepted": "forget on unaccepted revocation: a set that isn't held clears state",
+    "revocation-drops-floors": "a revocation drops the replay floors instead of keeping them",
 }
 
 

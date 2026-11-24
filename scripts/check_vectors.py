@@ -16,7 +16,8 @@ mistake in them is caught before an implementation is tested against it.
   then manifest hashes and file list), gives its expected outcome;
 - every feed case, re-checked here step by step in the order of spec/feeds.md § Reading a
   feed (the served key set, revocation, the index, each stream), gives its expected key
-  set, index and stream outcomes, and its connection and reader state are well formed;
+  set, index and stream outcomes, and the reader state it expects after the poll; its
+  connection and reader state are well formed;
 - every outcome code a vector expects is in the table in spec/feeds.md § Outcomes;
 - every signature case verifies, or fails with its expected code.
 
@@ -59,7 +60,7 @@ SIGNATURE_CONTEXTS = {
 B64URL = re.compile(r"^[A-Za-z0-9_-]*$")
 # LEGIBLE_VECTORS_MUTATION=<name>[,<name>…] turns a check off, so that scripts/check_mutations.py
 # can show the vectors catch its absence: feed-sig-verify, manifest-sig-verify, zip-names,
-# future-skew, served-key-set, revocation-clears.
+# future-skew, served-key-set, revocation-clears, forget-unaccepted, revocation-drops-floors.
 MUTATIONS = set(filter(None, os.environ.get("LEGIBLE_VECTORS_MUTATION", "").split(",")))
 OPTIONS = {"base", "common", "location"}
 
@@ -269,7 +270,9 @@ class Trust:
 
     `anchors` are pinned and approved keys ({publisher, id, alg, public_key}); `held` maps a
     publisher to the key set the reader holds for it (one accepted on this poll included);
-    `revoking` are served sets waiting for approval, whose revocations count.
+    `revoking` are served sets that passed key-set step 1 but aren't held (waiting for
+    approval, bad_endorsement, key_set_rollback): their revocations refuse signatures on this
+    poll, and clear nothing.
     """
 
     def __init__(self, anchors, held, revoking=()):
@@ -293,9 +296,12 @@ class Trust:
         held = self.held.get(publisher)
         return next((k for k in held["keys"] if k["id"] == key_id), None) if held else None
 
-    def revoked(self, publisher, key_id, public):
-        """True when a held or revoking set revokes this id, or this public key under any id."""
-        sets = [self.held.get(publisher)] + [s for s in self.revoking if s["publisher"] == publisher]
+    def revoked(self, publisher, key_id, public, held_only=False):
+        """True when a held set, or unless `held_only` a revoking one, revokes this id, or this
+        public key under any id."""
+        sets = [self.held.get(publisher)]
+        if not held_only:
+            sets += [s for s in self.revoking if s["publisher"] == publisher]
         return any(k.get("revoked_at") and (k["id"] == key_id or key_bytes(k["public_key"]) == public)
                    for s in sets if s for k in s["keys"])
 
@@ -315,9 +321,11 @@ class Trust:
         return public
 
     def signer_revoked(self, signer):
-        """For a signer the reader recorded: has its key been revoked since?"""
+        """For a signer the reader recorded: has the held set revoked its key since? Only a held
+        revocation clears state (feeds.md § Trust)."""
+        held_only = "forget-unaccepted" not in MUTATIONS
         found = self.sources(signer["publisher"], signer["key"]) or [(None, None)]
-        return any(self.revoked(signer["publisher"], signer["key"], public) for _, public in found)
+        return any(self.revoked(signer["publisher"], signer["key"], public, held_only) for _, public in found)
 
 
 def signature_outcome(sig_bytes, context, message, trust, expected_publisher, trusted):
@@ -606,8 +614,8 @@ def feed_index_problem(index_bytes, validator, now):
 
 
 def feed_outcome(case, files, served, validators):
-    """What a reader returns for this feed: {"index": "ok" or a code, "streams": {id: outcome}},
-    and "key_set" when the publisher serves one.
+    """What a reader returns for this feed: ({"index": "ok" or a code, "streams": {id: outcome}},
+    and "key_set" when the publisher serves one; the reader state after the poll, or None).
 
     `files` are the feed's files by path, `served` the key-set/ files. The steps are
     numbered as in spec/feeds.md § Reading a feed.
@@ -633,23 +641,33 @@ def feed_outcome(case, files, served, validators):
         if "served-key-set" not in MUTATIONS:
             if outcome == "accepted":
                 held[publisher] = new
-            elif outcome == "needs_approval":
+            elif new is not None:
+                # Passed step 1 but isn't held: its revocations count on this poll only.
                 revoking.append(new)
     trust = Trust(anchors, held, revoking)
     trusted = trust.trusts_publisher(publisher) or served_valid
+    if state is not None:
+        state["key_sets"] = held
 
-    # 2. Forget what a revoked key signed.
+    # 2. Clear what a key revoked by the held set signed: drop the stream's sha256 and signer,
+    # keep its published_at as the replay floor; drop the index's signer, keep its updated_at.
     if state is not None and "revocation-clears" not in MUTATIONS:
+        drop_floors = "revocation-drops-floors" in MUTATIONS
         for sid, held_stream in list(state["streams"].items()):
             if held_stream["signer"] is not None and trust.signer_revoked(held_stream["signer"]):
-                del state["streams"][sid]
+                if drop_floors:
+                    del state["streams"][sid]
+                else:
+                    state["streams"][sid] = dict(held_stream, sha256=None, signer=None)
                 result["streams"][sid] = "revoked_key"
         if state["feed_signer"] is not None and trust.signer_revoked(state["feed_signer"]):
-            state["feed_updated_at"] = None
+            state["feed_signer"] = None
+            if drop_floors:
+                state["feed_updated_at"] = None
 
     def refused(code):
         result["index"] = code
-        return result
+        return result, state
 
     # 3. Fetch the index.
     if "feed.json" in files and "feed.json.age" in files:
@@ -671,22 +689,40 @@ def feed_outcome(case, files, served, validators):
             instant(feed["updated_at"]) < instant(state["feed_updated_at"]):
         return refused("stale_feed")
     result["index"] = "ok"
+    if state is not None:
+        state["feed_updated_at"] = feed["updated_at"]
+        state["feed_signer"] = ({"publisher": got["publisher"], "key": got["key"]}
+                                if got["status"] == "verified" else None)
 
-    held_streams = state["streams"] if state is not None else {}
+    held_streams = dict(state["streams"]) if state is not None else {}
     listed = {s["id"]: s for s in feed["streams"]}
     for sid in held_streams:  # 9. Withdrawn: in the state, not in the index.
-        if sid not in listed:
+        if sid not in listed and sid not in result["streams"]:
             result["streams"][sid] = "withdrawn"
+            del state["streams"][sid]
     for sid, stream in listed.items():
         if sid in result["streams"]:  # revoked_key in step 2: not checked again on this poll
             continue
-        result["streams"][sid] = stream_outcome(stream, held_streams.get(sid), files, feed["id"], trust,
-                                                publisher, trusted, now)
-    return result
+        outcome, signer = stream_outcome(stream, held_streams.get(sid), files, feed["id"], trust,
+                                         publisher, trusted, now)
+        result["streams"][sid] = outcome
+        if outcome == "accepted" and state is not None:  # 13. Recorded.
+            state["streams"][sid] = {"sha256": stream["sha256"], "published_at": stream["published_at"],
+                                     "signer": signer}
+    return result, state
 
 
 def stream_outcome(stream, held, files, feed_id, trust, publisher, trusted, now):
-    """One stream of a feed, steps 8 and 10 to 13: accepted, unchanged or an outcome code."""
+    """One stream of a feed, steps 8 and 10 to 13: (accepted, signer), or (unchanged or an
+    outcome code, None). A stream a revocation cleared has no sha256, so it is never unchanged."""
+    outcome = stream_check(stream, held, files, feed_id, trust, publisher, trusted, now)
+    if isinstance(outcome, dict):
+        return "accepted", outcome.get("signer")
+    return outcome, None
+
+
+def stream_check(stream, held, files, feed_id, trust, publisher, trusted, now):
+    """stream_outcome's checks: {"signer": ...} when accepted, else the outcome."""
     if held is not None and held["sha256"] == stream["sha256"]:  # 8.
         return "unchanged"
     data = files.get(stream["bundle"])  # 10.
@@ -711,10 +747,11 @@ def stream_outcome(stream, held, files, feed_id, trust, publisher, trusted, now)
             return "wrong_feed"
         if place.get("stream") != stream["id"]:
             return "wrong_stream"
-        # 12. Replay.
+        # 12. Replay, against the floor a revocation keeps too.
         if held is not None and instant(manifest["published_at"]) <= instant(held["published_at"]):
             return "replay"
-    return "accepted"  # 13.
+        return {"signer": {"publisher": got["publisher"], "key": got["key"]}}  # 13.
+    return {"signer": None}
 
 
 def state_problem(state):
@@ -728,6 +765,8 @@ def state_problem(state):
         return "feed_signer and every stream's signer are {publisher, key} or null"
     if any(set(s) != {"sha256", "published_at", "signer"} for s in state["streams"].values()):
         return "every stream holds sha256, published_at and signer"
+    if any(s["sha256"] is None and s["signer"] is not None for s in state["streams"].values()):
+        return "a stream a revocation cleared has sha256 and signer null"
     if any(set(a) != {"publisher", "id", "alg", "public_key"} for a in state["approved"]):
         return "every approved key has publisher, id, alg and public_key"
     return None
@@ -762,8 +801,12 @@ def check_feeds(directory, problems, codes):
             problems.append(f"{where}: case.json holds name, connection, state, expect and optionally now")
             continue
         expect = case["expect"]
-        if set(expect) != {"index", "streams"} | ({"key_set"} if served else set()):
-            problems.append(f"{where}: expect holds index and streams, and key_set exactly when there is key-set/")
+        if set(expect) - {"state"} != {"index", "streams"} | ({"key_set"} if served else set()):
+            problems.append(f"{where}: expect holds index and streams, key_set exactly when there is key-set/, "
+                            "and optionally state")
+            continue
+        if "state" in expect and (case["state"] is None or state_problem(expect["state"])):
+            problems.append(f"{where}: expect's state is for a case with state, in the state's format")
             continue
         if served and set(served) - {"keys.json", "keys.sig"} or served and "keys.json" not in served:
             problems.append(f"{where}: key-set/ holds keys.json and optionally keys.sig")
@@ -782,10 +825,12 @@ def check_feeds(directory, problems, codes):
             problems.append(f"{where}: {unknown} aren't in spec/feeds.md § Outcomes")
             continue
         try:
-            got = feed_outcome(case, files, served, validators)
+            got, after = feed_outcome(case, files, served, validators)
         except VectorProblem as err:
             problems.append(f"{where}: {err}")
             continue
+        if "state" in expect:
+            got["state"] = after
         if got != expect:
             problems.append(f"{where}: expected {expect}, the re-check gives {got}")
     return len(cases)

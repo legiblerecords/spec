@@ -645,6 +645,11 @@ def reader_state(bundles, updated_at=FEED_HELD, feed_signer=K2026[0], held_keys=
     }
 
 
+def cleared_stream(published_at):
+    """A stream a revocation cleared: no sha256 or signer, and its published_at kept as a floor."""
+    return {"sha256": None, "published_at": published_at, "signer": None}
+
+
 def served_keys(new, signer_=None):
     """The key-set/ files a publisher serves: keys.json, and keys.sig when `signer_` endorses it."""
     stored = stored_json(new)
@@ -662,11 +667,15 @@ def feed_cases():
     current = list(held.items())
     cases = []
 
-    def add(name, state, files, index, streams, connection=None, keys=None, key_set_=None, now=None):
-        """`keys` is the key-set/ files the publisher serves, and `key_set_` what the reader makes of them."""
+    def add(name, state, files, index, streams, connection=None, keys=None, key_set_=None, now=None,
+            after=None):
+        """`keys` is the key-set/ files the publisher serves, and `key_set_` what the reader makes of them;
+        `after`, when given, is the reader state the poll must leave."""
         expect = {"index": index, "streams": streams}
         if keys is not None:
             expect["key_set"] = key_set_
+        if after is not None:
+            expect["state"] = after
         cases.append((name, state, files, expect, connection or feed_connection(), keys or {}, now))
 
     def every(outcome, **others):
@@ -787,22 +796,61 @@ def feed_cases():
         keys=served_keys(key_set(key_entry(*K2027), key_entry(*K2026), key_entry(*K2025, **REVOKED))),
         key_set_="needs_approval")
 
-    # Revocation clears what the key signed.
+    # A revocation in the held set (one accepted on this poll included) clears what the key
+    # signed: the stream's sha256 and signer go, so it is fetched again next poll, and its
+    # published_at stays as the replay floor.
     both = key_set(key_entry(*K2026), key_entry(*K2025), updated_at=HELD_AT)
     revokes_2025 = key_set(key_entry(*K2026), key_entry(*K2025, **REVOKED))
     by_2025 = dict(held, **{s0: feed_bundle(s0, FEED_HELD, signer=K2025[0])})
+    cleared = cleared_stream(FEED_HELD)
+    after = reader_state(by_2025, updated_at=FEED_NEW, held_keys=revokes_2025)
+    after["streams"][s0] = cleared
     add("revoked-key-clears-stream", reader_state(by_2025, held_keys=both),
         feed_dir(list(by_2025.items()), FEED_NEW),
-        "ok", every("unchanged", **{s0: "revoked_key"}), keys=served_keys(revokes_2025), key_set_="accepted")
-    # The same, and the index is then refused: the stream is still forgotten.
+        "ok", every("unchanged", **{s0: "revoked_key"}), keys=served_keys(revokes_2025), key_set_="accepted",
+        after=after)
+    # The same, and the index is then refused: the stream is still cleared.
+    after = reader_state(by_2025, held_keys=revokes_2025)
+    after["streams"][s0] = cleared
     add("revoked-key-index-refused", reader_state(by_2025, held_keys=both),
         feed_dir(list(by_2025.items()), FEED_NEW, signer=None),
-        "unsigned_from_pinned_publisher", {s0: "revoked_key"}, keys=served_keys(revokes_2025), key_set_="accepted")
-    # The thief of 2025-06 signed an index dated ahead; once 2025-06 is revoked, the genuine
-    # index isn't stale.
-    add("revoked-key-clears-watermark",
-        reader_state(held, updated_at="2026-12-01T12:00:00Z", feed_signer=K2025[0], held_keys=both),
-        feed_dir(current, FEED_NEW), "ok", every("unchanged"), keys=served_keys(revokes_2025), key_set_="accepted")
+        "unsigned_from_pinned_publisher", {s0: "revoked_key"}, keys=served_keys(revokes_2025), key_set_="accepted",
+        after=after)
+    # The thief of 2025-06 signed an index dated ahead. Revoking 2025-06 clears the index's
+    # signer but keeps its updated_at: a floor at most 24 hours ahead, never a reopened replay.
+    ahead = "2026-12-01T12:00:00Z"
+    after = reader_state(held, updated_at=ahead, feed_signer=None, held_keys=revokes_2025)
+    add("revoked-key-keeps-watermark",
+        reader_state(held, updated_at=ahead, feed_signer=K2025[0], held_keys=both),
+        feed_dir(current, FEED_NEW), "stale_feed", {}, keys=served_keys(revokes_2025), key_set_="accepted",
+        after=after)
+    # A stream cleared by a revocation is later offered an older bundle, signed by a key that
+    # is still trusted: the kept published_at refuses it.
+    state = reader_state(held, held_keys=revoked_2025)
+    state["streams"][s0] = cleared
+    older = feed_bundle(s0, FEED_OLD, revision=0)
+    add("revoked-stream-older-bundle", state, feed_dir([(s0, older)] + current[1:], FEED_NEW),
+        "ok", every("unchanged", **{s0: "replay"}))
+
+    # A revocation in a served set the reader doesn't hold refuses what the key signed on this
+    # poll, and changes nothing the reader keeps. Whoever controls the server can serve such a
+    # set with no key; if it cleared the floors, the next poll could replay old signed content.
+    state = reader_state(held)
+    revokes_2026 = key_set(key_entry(*K2027), key_entry(*K2026, **REVOKED))
+    add("pending-set-revokes-signer", state, feed_dir(current, FEED_HELD),
+        "revoked_key", {}, keys=served_keys(revokes_2026), key_set_="needs_approval", after=state)
+    # The next poll: the genuine key set again, with an older index and bundles that 2026-11
+    # really signed. The watermark is still there.
+    old_feed = [(s, feed_bundle(s, FEED_OLD, revision=0)) for s in FEED_STREAMS]
+    add("pending-set-revokes-signer-next-poll", state, feed_dir(old_feed, FEED_OLD),
+        "stale_feed", {}, keys=served_keys(key_set(key_entry(*K2026))), key_set_="accepted", after=state)
+    # The same revocation in a set refused as key_set_rollback (older than the held set) ...
+    add("rollback-set-revokes-signer", state, feed_dir(current, FEED_HELD),
+        "revoked_key", {}, keys=served_keys(key_set(key_entry(*K2026, **REVOKED), updated_at=HELD_AT)),
+        key_set_="key_set_rollback", after=state)
+    # ... and in one refused as bad_endorsement (2026-11 may not endorse a set that revokes it).
+    add("bad-endorsement-set-revokes-signer", state, feed_dir(current, FEED_HELD),
+        "revoked_key", {}, keys=served_keys(revokes_2026, K2026[0]), key_set_="bad_endorsement", after=state)
 
     files = {}
     for name, state, feed_files, expect, connection, keys, now in cases:
