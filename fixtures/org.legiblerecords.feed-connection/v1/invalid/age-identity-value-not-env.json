@@ -1,0 +1,9 @@
+{
+  "$type": "org.legiblerecords.feed-connection",
+  "version": 1,
+  "comment": "A connection file names environment variables, never secrets: age_identity_env, not age_identity.",
+  "feed": "acme.example/track",
+  "location": { "kind": "https", "url": "https://feeds.acme.example/track/" },
+  "auth": { "method": "bearer", "token_env": "ACME_FEED_TOKEN" },
+  "age_identity": "invented-not-a-real-identity"
+}

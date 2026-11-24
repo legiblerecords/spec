@@ -13,7 +13,8 @@ mistake in them is caught before an implementation is tested against it.
   signature, trust), gives its expected outcome;
 - every feed case, re-checked here in the order of spec/feeds.md § Reading a feed
   (reusing the bundle and signature re-checks), gives its expected index and stream
-  outcomes, and its connection and feed.json are valid records;
+  outcomes (an index that isn't a valid feed is bad_feed), and its connection is a
+  valid record;
 - every outcome code a vector expects is in the table in spec/feeds.md § Outcomes;
 - every signature case verifies, or fails with its expected code, under a
   re-check written here rather than imported from make_vectors.py.
@@ -448,10 +449,30 @@ def check_bundles(directory, problems, codes):
     return len(cases)
 
 
-def feed_outcome(case, files):
+class VectorProblem(Exception):
+    """The vector itself is broken, as opposed to a feed a reader refuses."""
+
+
+def feed_index_problem(index_bytes, validator):
+    """True when a plain feed index is bad_feed: not JSON, not a valid feed, a repeated
+    stream id, or a bundle path that isn't bundles/<its sha256>.zip."""
+    try:
+        feed = json.loads(index_bytes)
+    except ValueError:
+        return True
+    if any(True for _ in validator.iter_errors(feed)):
+        return True
+    ids = [s["id"] for s in feed["streams"]]
+    if len(set(ids)) != len(ids):
+        return True
+    return any(s["bundle"] != f"bundles/{s['sha256']}.zip" for s in feed["streams"])
+
+
+def feed_outcome(case, files, validator):
     """What a reader returns for this feed: {"index": "ok" or a code, "streams": {id: outcome}}.
 
-    `files` are the feed's files by path. The order is § Reading a feed's.
+    `files` are the feed's files by path, and `validator` checks a feed index against
+    its schema. The order is § Reading a feed's.
     """
     connection, state = case["connection"], case["state"]
 
@@ -472,6 +493,8 @@ def feed_outcome(case, files):
     got = signature_outcome(files.get("feed.sig"), "feed", index_bytes, trust, publisher, pinned)
     if "error" in got:
         return refused(got["error"])
+    if feed_index_problem(index_bytes, validator):
+        return refused("bad_feed")
     feed = json.loads(index_bytes)
     if feed["id"] != connection["feed"] or feed["publisher"] != publisher:
         return refused("wrong_feed")
@@ -491,7 +514,7 @@ def stream_outcome(stream, held, files, feed_id, trust, publisher, pinned):
         return "unchanged"
     data = files.get(stream["bundle"])
     if data is None:
-        return "missing from the vector"
+        raise VectorProblem(f"stream {stream['id']}: {stream['bundle']} is missing from the vector")
     if hashlib.sha256(data).hexdigest() != stream["sha256"]:
         return "download_mismatch"
     entries = read_zip(data)
@@ -542,16 +565,17 @@ def check_feeds(directory, problems, codes):
             problems.append(f"{where}: name must be the directory's")
         for err in validators["org.legiblerecords.feed-connection"].iter_errors(case["connection"]):
             problems.append(f"{where}: the connection isn't a valid feed-connection: {err.message}")
-        if "feed.json" in files:
-            for err in validators["org.legiblerecords.feed"].iter_errors(json.loads(files["feed.json"])):
-                problems.append(f"{where}: feed/feed.json isn't a valid feed: {err.message}")
         expect = case["expect"]
         outcomes = [expect["index"]] + list(expect["streams"].values())
         unknown = [o for o in outcomes if o not in codes | {"ok", "accepted", "unchanged", "withdrawn"}]
         if unknown:
             problems.append(f"{where}: {unknown} aren't in spec/feeds.md § Outcomes")
             continue
-        got = feed_outcome(case, files)
+        try:
+            got = feed_outcome(case, files, validators["org.legiblerecords.feed"])
+        except VectorProblem as err:
+            problems.append(f"{where}: {err}")
+            continue
         if got != expect:
             problems.append(f"{where}: expected {expect}, the re-check gives {got}")
     return len(cases)

@@ -31,6 +31,21 @@ fields:
         type: "null"
         json:
           x-note: A literal token here would put a secret in a file meant to be emailed or committed.
+      client_secret?:
+        description: Never a value. A connection file holds no secret; client_secret_env names the variable that holds the client secret.
+        type: "null"
+        json:
+          x-note: A literal client secret here would put a secret in a file meant to be emailed or committed.
+      access_key_id?:
+        description: Never a value. A connection file holds no secret; access_key_id_env names the variable that holds the access key id.
+        type: "null"
+        json:
+          x-note: A literal access key id here would put a secret in a file meant to be emailed or committed.
+      secret_access_key?:
+        description: Never a value. A connection file holds no secret; secret_access_key_env names the variable that holds the secret access key.
+        type: "null"
+        json:
+          x-note: A literal secret access key here would put a secret in a file meant to be emailed or committed.
   keys?:
     description: Pinned keys. Absent or empty means use the publisher's key set, and ask before trusting it the first time.
     items:
@@ -40,6 +55,11 @@ fields:
         alg: known(ed25519) -- Only ed25519 is defined.
         public_key: /^[A-Za-z0-9_-]{43}$/ -- The 32-byte public key, base64url without padding.
   age_identity_env?: /^[A-Za-z_][A-Za-z0-9_]*$/ -- The variable holding the age identity. Required for an encrypted feed.
+  age_identity?:
+    description: Never a value. A connection file holds no secret; age_identity_env names the variable that holds the age identity.
+    type: "null"
+    json:
+      x-note: A literal age identity here would put a secret in a file meant to be emailed or committed.
 examples:
   - $type: org.legiblerecords.feed-connection
     version: 1

@@ -12,7 +12,7 @@ At the feed's base URL, or under the bucket's prefix:
 
 ```
 feed.json                 the feed index (feed.json.age when the feed is encrypted)
-feed.sig                  optional, signs the stored feed.json (or feed.json.age) bytes
+feed.sig                  signs the stored feed.json (or feed.json.age) bytes; see below for when it is required
 bundles/<sha256>.zip      named by the SHA-256 of the file as stored
 bundles/<sha256>.zip.age
 ```
@@ -51,7 +51,7 @@ The feed index is a record of type [`org.legiblerecords.feed`](../schemas/org.le
 - `bundle` is the bundle's path from the feed's base, `bundles/<sha256>.zip`, or `.zip.age` for an encrypted feed. `sha256` is of the file as stored (the ciphertext, for an encrypted feed), so a reader can check the download before opening it.
 - `published_at` is the bundle's, as in its manifest.
 
-**`feed.sig`** has the form of [`manifest.sig`](records.md#signed-bundles), with the context string `legible-records/v1 feed\n`, and signs the exact bytes of the stored `feed.json` file (of `feed.json.age`, for an encrypted feed). It lets a reader trust the list of streams, so a stream that vanishes was withdrawn by the publisher, not dropped by whoever can write to the storage. A publisher that signs its bundles should sign its feed too.
+**`feed.sig`** has the form of [`manifest.sig`](records.md#signed-bundles), with the context string `legible-records/v1 feed\n`, and signs the exact bytes of the stored `feed.json` file (of `feed.json.age`, for an encrypted feed). It lets a reader trust the list of streams, so a stream that vanishes was withdrawn by the publisher, not dropped by whoever can write to the storage. A publisher that serves a [key set](records.md#key-sets) or signs its bundles must sign its feed. A reader that trusts a key of the feed's publisher, pinned in the connection file or from a key set it holds, refuses an unsigned index or an unsigned bundle from it (`unsigned_from_pinned_publisher`).
 
 ## Publishing
 
@@ -68,18 +68,19 @@ A reader polls the feed. How often is its own choice; it should poll no more tha
 **The index.** A refused index changes nothing: the reader keeps its state and every stream's last accepted bundle stays current.
 
 1. Fetch `feed.json` (or `feed.json.age`), with `If-None-Match` when the source gives ETags. Unchanged: the poll is done. If both `feed.json` and `feed.json.age` are present, refuse the feed: `plain_and_encrypted`.
-2. If `feed.sig` is present, verify it over the stored bytes with the `feed` context, as for a [signed bundle](records.md#reading-a-signed-bundle) (`bad_signature_file`, `unknown_alg`, `unknown_key`, `revoked_key`, `bad_signature`). The publisher it names must be the feed's, the domain its connection's `feed` starts with (`publisher_mismatch`). If it is absent and the feed's publisher is **pinned**, refuse the index: `unsigned_from_pinned_publisher`. In a feed, a publisher is pinned when the connection file pins a key for it, or the reader holds an accepted key set for it.
-3. Decrypt an encrypted index. Its `id` must be the connection's `feed`, and its `publisher` the domain that `id` starts with (`wrong_feed`).
-4. A reader with state refuses an `updated_at` earlier than the last one it accepted (`stale_feed`). An equal one is not stale.
+2. If `feed.sig` is present, verify it over the stored bytes with the `feed` context, as for a [signed bundle](records.md#reading-a-signed-bundle) (`bad_signature_file`, `unknown_alg`, `unknown_key`, `revoked_key`, `bad_signature`). The publisher it names must be the feed's, the domain its connection's `feed` starts with (`publisher_mismatch`). If it is absent and the reader trusts a key of the feed's publisher, pinned in the connection file or from a key set it holds, refuse the index: `unsigned_from_pinned_publisher`. Below, such a publisher is called **pinned**.
+3. Decrypt an encrypted index. Then, for every index, plain or decrypted: it must parse as JSON and be a valid [`org.legiblerecords.feed`](../schemas/org.legiblerecords.feed/v1.yaml), no stream `id` may appear twice, and every entry's `bundle` must be `bundles/<its sha256>.zip` in a plain feed or `bundles/<its sha256>.zip.age` in an encrypted one (`bad_feed`).
+4. The index's `id` must be the connection's `feed`, and its `publisher` the domain that `id` starts with (`wrong_feed`).
+5. A reader with state refuses an `updated_at` earlier than the last one it accepted (`stale_feed`). An equal one is not stale.
 
 **Each stream.** A failure in one stream doesn't stop the others: the reader reports it and tries again next poll, and the stream's last accepted bundle stays current.
 
-5. A stream whose `sha256` is the last one accepted for it is **unchanged**, and isn't fetched.
-6. A stream that was in the last accepted `feed.json` and isn't now is **withdrawn**. What the reader does with what it holds is its own policy.
-7. Otherwise fetch the bundle and check its SHA-256 against `feed.json` (`download_mismatch`). Decrypt it if it is encrypted, then open and check it as a bundle (`bad_bundle`), including its signature as in [§ Reading a signed bundle](records.md#reading-a-signed-bundle), with the feed's publisher as the publisher it must name. An unsigned bundle from a pinned publisher is `unsigned_from_pinned_publisher`.
-8. For a signed bundle: its manifest must have `published_at` (`missing_published_at`), and its `feed.id` and `feed.stream` must be the feed's `id` and the stream's `id` (`wrong_feed`, `wrong_stream`). This stops one stream's bundle being served as another's, or another feed's as this one's.
-9. A reader with state refuses a signed bundle whose `published_at` isn't later than the last accepted one for the stream (`replay`). An equal `published_at` is a replay. This stops an old signed bundle being put back.
-10. Otherwise the bundle is **accepted**, and becomes the stream's current bundle.
+6. A stream whose `sha256` is the last one accepted for it is **unchanged**, and isn't fetched.
+7. A stream that was in the last accepted `feed.json` and isn't now is **withdrawn**. What the reader does with what it holds is its own policy.
+8. Otherwise fetch the bundle and check its SHA-256 against `feed.json` (`download_mismatch`). Decrypt it if it is encrypted, then check its signature as in [§ Reading a signed bundle](records.md#reading-a-signed-bundle), with the feed's publisher as the publisher it must name, and then open and check it as a bundle (`bad_bundle`). The signature is checked before the bundle's own checks, as for any signed bundle. An unsigned bundle from a pinned publisher is `unsigned_from_pinned_publisher`.
+9. For a signed bundle: its manifest must have `published_at` (`missing_published_at`), and its `feed.id` and `feed.stream` must be the feed's `id` and the stream's `id` (`wrong_feed`, `wrong_stream`). This stops one stream's bundle being served as another's, or another feed's as this one's.
+10. A reader with state refuses a signed bundle whose `published_at` isn't later than the last accepted one for the stream (`replay`). An equal `published_at` is a replay. This stops an old signed bundle being put back.
+11. Otherwise the bundle is **accepted**, and becomes the stream's current bundle.
 
 Timestamps are parsed and compared as instants, not as text: `2026-11-24T11:00:00+01:00` and `2026-11-24T10:00:00Z` are equal.
 
@@ -96,7 +97,7 @@ An unsigned bundle from a publisher that isn't pinned is accepted as **unverifie
 }
 ```
 
-The keys a reader trusts are the connection's pins, and with state also the held key sets and the keys a person approved. Encrypted feeds have no vectors here, because age output is random; implementations test them themselves.
+The keys a reader trusts are the connection's pins, and with state also the held key sets and the keys a person approved. Encrypted feeds have no vectors here, because age output is random; implementations test them themselves. The `stateless-replay` vector asserts only that the old bundle is accepted; that it is delivered with its older `published_at`, for the destination to refuse, is for an implementation's own tests.
 
 ## Reader state
 
@@ -113,7 +114,7 @@ The checks above compare against what the reader accepted before. The spec says 
 - State must be kept where the feed's writer can't change it. Someone who can write the feed and reset the reader's state can get a replay accepted.
 - State changes only when something is accepted: a refused index leaves all of it as it was, and a refused stream leaves that stream's.
 
-**A stateless reader** is allowed when what it delivers to performs the history checks instead. It skips the `stale_feed` and `replay` checks, fetches and checks every stream on every run (hash, bundle, signature, `feed.id` and `feed.stream`), and passes each bundle's `published_at` and `sha256` along. Its destination refuses a `published_at` older than the one it holds, ignores an unchanged hash, and marks withdrawn streams. A stateless reader's keys come only from its connection file: it accepts a rotated key set when `keys.sig` is by a pinned key that the new set doesn't revoke ([§ Key sets](records.md#key-sets)), and anything else waits for a person to update the connection file.
+**A stateless reader** is allowed when what it delivers to performs the history checks instead. It skips the `stale_feed` and `replay` checks, fetches and checks every stream on every run (hash, bundle, signature, `feed.id` and `feed.stream`), and passes along, with each bundle it delivers, the bundle's `published_at` and `sha256` and the index's `updated_at` and list of stream ids. Its destination then does what a reader with state would: it refuses an index whose `updated_at` is earlier than the last it accepted, and marks nothing withdrawn from one; it ignores an unchanged hash; it refuses a bundle whose `published_at` is older than the one it holds, or equal to it with a different `sha256`, which is a replay; and it marks withdrawn the streams a newer index no longer lists. Without the index's `updated_at`, an old index that is genuinely signed would get current streams marked withdrawn. A stateless reader's keys come only from its connection file: it accepts a rotated key set when `keys.sig` is by a pinned key that the new set doesn't revoke ([§ Key sets](records.md#key-sets)), and anything else waits for a person to update the connection file.
 
 ## Encrypted feeds
 
@@ -153,11 +154,11 @@ A connection file is a record of type [`org.legiblerecords.feed-connection`](../
 
 - `feed` is the feed's id. The feed's `feed.json` must have it.
 - `location.kind` is `https`, with `url`, the feed's base URL; or `s3`, with `endpoint`, `region`, `bucket` and `prefix`, and optionally `path_style` (address the bucket in the path, not the host name; false when absent).
-- `auth.method` is one of [§ Access](#access). `auth` names environment variables, never values: `token_env` for `bearer`; `token_url`, `client_id`, `client_secret_env`, `resource` and `scope` for `oauth-client-credentials`; `access_key_id_env` and `secret_access_key_env` for `s3`. The schema has a `token` field that can only be `null`, so a file with a literal token in it doesn't validate.
+- `auth.method` is one of [§ Access](#access). `auth` names environment variables, never values: `token_env` for `bearer`; `token_url`, `client_id`, `client_secret_env`, `resource` and `scope` for `oauth-client-credentials`; `access_key_id_env` and `secret_access_key_env` for `s3`. The schema has `token`, `client_secret`, `access_key_id` and `secret_access_key` fields in `auth`, and `age_identity` at the top level, that can only be `null`, so a file with a literal value in one of them doesn't validate.
 - `keys` pins keys, each a publisher, a key id, `alg` and a public key. Absent or empty means: use the publisher's key set, and ask before trusting it the first time ([§ Key sets](records.md#key-sets)). A publisher without a key set has its key pinned here.
 - `age_identity_env` names the variable holding the reader's age identity, and is required for an encrypted feed.
 
-The fields a `kind` or `method` needs can't be required by the schema, because the published subset has no conditionals ([rules.md](rules.md#the-published-subset)), so the reader checks them. A reader refuses a connection file that lacks a field its `kind` or `method` needs, or whose `kind` or `method` it doesn't know, before it fetches anything.
+The fields a `kind` or `method` needs can't be required by the schema, because the published subset has no conditionals ([rules.md](rules.md#the-published-subset)), so the reader checks them. A reader refuses a connection file that lacks a field its `kind` or `method` needs, or whose `kind` or `method` it doesn't know, before it fetches anything. It also refuses one whose `url`, `endpoint` or `token_url` carries userinfo (`user:password@`), since that would put a credential in the file.
 
 The file holds no secret, so it can be emailed, committed, or pasted into a reader's settings.
 
@@ -173,9 +174,10 @@ A reader of a bundle, a feed or a key set returns one of these codes when it ref
 | `bad_signature` | The signature doesn't verify. |
 | `revoked_key` | Signed by a revoked key, whatever the bundle's `published_at`. |
 | `publisher_mismatch` | The signature's publisher isn't the feed's publisher. |
-| `unsigned_from_pinned_publisher` | An unsigned bundle or feed index from a publisher with a pinned key. |
+| `unsigned_from_pinned_publisher` | An unsigned bundle or feed index from a publisher whose key the reader trusts, pinned or from a key set it holds. |
 | `stale_feed` | `feed.json` `updated_at` is earlier than the last one accepted. |
 | `plain_and_encrypted` | Both `feed.json` and `feed.json.age` are present. |
+| `bad_feed` | A feed index doesn't parse or isn't a valid feed, repeats a stream id, or lists a `bundle` path that isn't `bundles/<its sha256>.zip` (`.zip.age` in an encrypted feed). |
 | `download_mismatch` | A bundle file's SHA-256 isn't the one `feed.json` gives. |
 | `bad_bundle` | The bundle fails the bundle checks: hashes, file list or references. |
 | `missing_published_at` | A signed bundle in a feed has no `published_at`. |

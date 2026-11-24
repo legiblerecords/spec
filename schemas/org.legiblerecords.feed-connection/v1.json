@@ -33,6 +33,11 @@
     "$type": {
       "const": "org.legiblerecords.feed-connection"
     },
+    "age_identity": {
+      "description": "Never a value. A connection file holds no secret; age_identity_env names the variable that holds the age identity.",
+      "type": "null",
+      "x-note": "A literal age identity here would put a secret in a file meant to be emailed or committed."
+    },
     "age_identity_env": {
       "description": "The variable holding the age identity. Required for an encrypted feed.",
       "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
@@ -41,6 +46,11 @@
     "auth": {
       "description": "How the reader authenticates. Every secret is named by an environment variable, in a field ending _env.",
       "properties": {
+        "access_key_id": {
+          "description": "Never a value. A connection file holds no secret; access_key_id_env names the variable that holds the access key id.",
+          "type": "null",
+          "x-note": "A literal access key id here would put a secret in a file meant to be emailed or committed."
+        },
         "access_key_id_env": {
           "description": "For s3, the variable holding the access key id.",
           "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
@@ -49,6 +59,11 @@
         "client_id": {
           "description": "For oauth-client-credentials.",
           "type": "string"
+        },
+        "client_secret": {
+          "description": "Never a value. A connection file holds no secret; client_secret_env names the variable that holds the client secret.",
+          "type": "null",
+          "x-note": "A literal client secret here would put a secret in a file meant to be emailed or committed."
         },
         "client_secret_env": {
           "description": "For oauth-client-credentials, the variable holding the client secret.",
@@ -72,6 +87,11 @@
         "scope": {
           "description": "For oauth-client-credentials, sent as scope.",
           "type": "string"
+        },
+        "secret_access_key": {
+          "description": "Never a value. A connection file holds no secret; secret_access_key_env names the variable that holds the secret access key.",
+          "type": "null",
+          "x-note": "A literal secret access key here would put a secret in a file meant to be emailed or committed."
         },
         "secret_access_key_env": {
           "description": "For s3, the variable holding the secret access key.",

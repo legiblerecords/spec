@@ -442,27 +442,33 @@ def sha256_hex(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def feed_connection():
-    return {
+def feed_connection(pinned=True):
+    connection = {
         "$type": "org.legiblerecords.feed-connection",
         "version": 1,
         "feed": FEED_ID,
         "location": {"kind": "https", "url": FEED_URL},
         "auth": {"method": "bearer", "token_env": "ACME_FEED_TOKEN"},
-        "keys": [dict(pin(K2026[0]), alg="ed25519")],
     }
+    if pinned:
+        connection["keys"] = [dict(pin(K2026[0]), alg="ed25519")]
+    return connection
 
 
-def feed_dir(streams, updated_at, signer=K2026[0], extra=None, contents=None):
+def feed_dir(streams, updated_at, signer=K2026[0], extra=None, contents=None, paths=None, raw_index=None):
     """The files at a feed's base URL, as {path: bytes}.
 
     `streams` is a list of (stream id, bundle zip bytes). `contents` replaces what is
-    stored at a bundle's path; `extra` adds files beside feed.json.
+    stored at a bundle's path; `paths` ({position in streams: path}) replaces the
+    `bundle` path an entry gives; `raw_index` replaces feed.json's bytes, and is signed
+    like them; `extra` adds files beside feed.json.
     """
     listed, files = [], {}
-    for stream, data in streams:
+    for position, (stream, data) in enumerate(streams):
         digest = sha256_hex(data)
         path = f"bundles/{digest}.zip"
+        files[path] = data
+        path = (paths or {}).get(position, path)
         published_at = json.loads(read_manifest(data))["published_at"]
         listed.append({
             "id": stream,
@@ -472,7 +478,6 @@ def feed_dir(streams, updated_at, signer=K2026[0], extra=None, contents=None):
             "sha256": digest,
             "published_at": published_at,
         })
-        files[path] = data
     files.update(contents or {})
     index = stored_json({
         "$type": "org.legiblerecords.feed",
@@ -483,6 +488,8 @@ def feed_dir(streams, updated_at, signer=K2026[0], extra=None, contents=None):
         "updated_at": updated_at,
         "streams": listed,
     })
+    if raw_index is not None:
+        index = raw_index
     files["feed.json"] = index
     if signer:
         files["feed.sig"] = stored_json(signature_file(signer, sign(signer, "feed", index)))
@@ -519,8 +526,9 @@ def feed_cases():
     current = list(held.items())
     cases = []
 
-    def add(name, state, files, index, streams):
-        cases.append((name, state, files, {"index": index, "streams": streams}))
+    def add(name, state, files, index, streams, connection=None):
+        cases.append((name, state, files, {"index": index, "streams": streams},
+                      connection or feed_connection()))
 
     def every(outcome, **others):
         return dict({s: outcome for s in FEED_STREAMS}, **others)
@@ -561,11 +569,21 @@ def feed_cases():
     add("one-stream-bad-others-fine", None, feed_dir([(s0, bad)] + current[1:], FEED_NEW),
         "ok", every("accepted", **{s0: "bad_bundle"}))
 
+    # Trust comes only from the key set the reader holds: the connection pins nothing.
+    add("unsigned-index-key-set", reader_state(held), feed_dir(current, FEED_NEW, signer=None),
+        "unsigned_from_pinned_publisher", {}, connection=feed_connection(pinned=False))
+    # Signed, so the signature passes and the index is refused for what it holds.
+    add("index-not-json", None, feed_dir(current, FEED_NEW, raw_index=b"not json\n"), "bad_feed", {})
+    add("repeated-stream-id", None, feed_dir(current + [(s0, newer[s0])], FEED_NEW), "bad_feed", {})
+    # The entry's sha256 is held[s0]'s, but its path names held[s1]'s file.
+    add("bundle-path-mismatch", None,
+        feed_dir(current, FEED_NEW, paths={0: f"bundles/{sha256_hex(held[s1])}.zip"}), "bad_feed", {})
+
     files = {}
-    for name, state, feed_files, expect in cases:
+    for name, state, feed_files, expect, connection in cases:
         base = f"feeds/{name}/"
         files[base + "case.json"] = stored_json({
-            "name": name, "connection": feed_connection(), "state": state, "expect": expect})
+            "name": name, "connection": connection, "state": state, "expect": expect})
         for path, data in feed_files.items():
             files[base + "feed/" + path] = data
     return files
