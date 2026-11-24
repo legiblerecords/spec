@@ -389,8 +389,45 @@ def record_set_lines(records):
     return b"".join(canonical_line(r) for r in sorted(records, key=lambda r: r["id"].encode()))
 
 
+def es_number(value):
+    """A number as ECMAScript writes it (RFC 8785 § 3.2.2.3), the form record-set lines use."""
+    x = float(value)
+    if x == 0:
+        return "0"
+    sign = "-" if x < 0 else ""
+    mantissa, _, exp = repr(abs(x)).partition("e")
+    whole, _, frac = mantissa.partition(".")
+    digits = (whole + frac).lstrip("0")
+    point = len(whole) - (len(whole + frac) - len((whole + frac).lstrip("0"))) + int(exp or 0)
+    digits = digits.rstrip("0")
+    k, n = len(digits), point
+    if k <= n <= 21:
+        text = digits + "0" * (n - k)
+    elif 0 < n <= 21:
+        text = digits[:n] + "." + digits[n:]
+    elif -6 < n <= 0:
+        text = "0." + "0" * -n + digits
+    else:
+        e = n - 1
+        text = digits[0] + ("." + digits[1:] if k > 1 else "") + "e" + ("+" if e >= 0 else "-") + str(abs(e))
+    return sign + text
+
+
+def canonical_json(value):
+    if value is None or isinstance(value, bool):
+        return json.dumps(value)
+    if isinstance(value, (int, float)):
+        return es_number(value)
+    if isinstance(value, str):
+        return json.dumps(value, ensure_ascii=False)
+    if isinstance(value, list):
+        return "[" + ",".join(canonical_json(v) for v in value) + "]"
+    return "{" + ",".join(json.dumps(k, ensure_ascii=False) + ":" + canonical_json(value[k])
+                          for k in sorted(value, key=lambda k: k.encode())) + "}"
+
+
 def canonical_line(record):
-    return json.dumps(record, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode() + b"\n"
+    return canonical_json(record).encode() + b"\n"
 
 
 def bundle_manifest(files, published_at=BUNDLE_PUBLISHED_AT, entries=None, **extra):
@@ -581,6 +618,28 @@ def bundle_cases():
         files=with_set(sorted_set, **{"records/alert/api-12.json": stored_json(alerts[0])}))
     add("set-wrong-path", trust(), bad, expected_publisher=None,
         files=with_set(sorted_set, path="records/alerts/all.ndjson"))
+    # Without the type's schema, a reader takes the set's file name as its kind, as it does
+    # a per-record folder: a type whose title is vuln-alert is packed at records/vuln-alert.ndjson.
+    add("set-named-by-title", trust(), unverified, expected_publisher=None,
+        files=with_set(sorted_set, path="records/vuln-alert.ndjson"))
+    # A per-record file's name is its record's id.
+    add("stem-differs-from-id", trust(), bad, expected_publisher=None,
+        files=dict(bundle_files(), **{"records/alert/other.json": stored_json(alert("api-12"))}))
+    # Numbers are written as ECMAScript writes them (RFC 8785).
+    numbers = alert("n-1", cvss=7.5, probability=0.00001, tiny=1e-7, huge=1e21, count=123456789,
+                    delta=-3, zero=0, half=0.5)
+    add("numbers-canonical", trust(), unverified, expected_publisher=None,
+        files=with_set(canonical_line(numbers)))
+    def number_text(old, new):
+        return with_set(canonical_line(numbers).replace(old, new))
+    add("number-exponent-form", trust(), bad, expected_publisher=None,
+        files=number_text(b'"probability":0.00001', b'"probability":1e-05'))
+    add("number-trailing-zero", trust(), bad, expected_publisher=None,
+        files=number_text(b'"cvss":7.5', b'"cvss":7.50'))
+    add("number-beyond-double", trust(), bad, expected_publisher=None,
+        files=number_text(b'"count":123456789', b'"count":18446744073709551616'))
+    add("number-nan", trust(), bad, expected_publisher=None,
+        files=number_text(b'"count":123456789', b'"count":NaN'))
 
     files = {}
     for name, trust_, expected_publisher, expect, entries, now, repeated in cases:

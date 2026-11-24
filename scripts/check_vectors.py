@@ -30,6 +30,7 @@ Needs: pip install jsonschema cryptography
 import base64
 import binascii
 import copy
+import decimal
 import hashlib
 import io
 import json
@@ -558,8 +559,51 @@ def is_key(text):
     return isinstance(text, str) and text != "" and all(c in "abcdefghijklmnopqrstuvwxyz0123456789-" for c in text)
 
 
+def es_number(x):
+    """ECMAScript Number::toString of a double (RFC 8785 § 3.2.2.3), from its shortest digits."""
+    if x == 0:
+        return "0"
+    d = decimal.Decimal(repr(abs(x))).normalize()
+    sign_, digits_t, exponent = d.as_tuple()
+    digits = "".join(map(str, digits_t))
+    k = len(digits)
+    n = exponent + k  # the value is 0.digits * 10^n
+    if k <= n <= 21:
+        text = digits + "0" * (n - k)
+    elif 0 < n <= 21:
+        text = digits[:n] + "." + digits[n:]
+    elif -6 < n <= 0:
+        text = "0." + "0" * (-n) + digits
+    else:
+        mant = digits[0] + ("." + digits[1:] if k > 1 else "")
+        text = f"{mant}e{'+' if n - 1 >= 0 else '-'}{abs(n - 1)}"
+    return ("-" if x < 0 else "") + text
+
+
+def canonical(value):
+    r"""records.md § Record sets: compact, keys sorted by UTF-8 bytes, numbers as ECMAScript
+    writes them, strings with only the escapes JSON requires (\" \\ \b \f \n \r \t and \u00xx)."""
+    if value is None or value is True or value is False:
+        return json.dumps(value)
+    if type(value) in (int, float):
+        x = float(value)
+        if x != x or x in (float("inf"), float("-inf")):
+            raise ValueError("not a finite number")
+        return json.dumps(value) if "number-form" in MUTATIONS else es_number(x)
+    if type(value) is str:
+        return json.dumps(value, ensure_ascii=False)
+    if type(value) is list:
+        return "[" + ",".join(canonical(v) for v in value) + "]"
+    keys = sorted(value, key=lambda key: key.encode("utf-8"))
+    return "{" + ",".join(json.dumps(key, ensure_ascii=False) + ":" + canonical(value[key]) for key in keys) + "}"
+
+
 def canonical_line(record):
-    return json.dumps(record, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode() + b"\n"
+    return canonical(record).encode("utf-8") + b"\n"
+
+
+def refuse_constant(name):
+    raise ValueError(f"{name} isn't JSON")
 
 
 def record_set_problem(data, entry):
@@ -571,10 +615,14 @@ def record_set_problem(data, entry):
     ids = []
     for n, line in enumerate(data[:-1].split(b"\n"), 1):
         try:
-            record = json.loads(line.decode("utf-8"))
+            record = json.loads(line.decode("utf-8"), parse_constant=refuse_constant)
         except (UnicodeDecodeError, ValueError):
             return f"line {n} doesn't parse", None
-        if not isinstance(record, dict) or canonical_line(record) != line + b"\n":
+        try:
+            canonical_form = canonical_line(record) if isinstance(record, dict) else None
+        except (ValueError, UnicodeEncodeError):
+            canonical_form = None
+        if canonical_form != line + b"\n":
             return f"line {n} isn't canonical", None
         if record.get("$type") != entry.get("record_type") or record.get("version") != entry.get("record_version"):
             return f"line {n} isn't a {entry.get('record_type')} v{entry.get('record_version')}", None
@@ -600,8 +648,10 @@ def record_problem(entries, listed):
         entry = listed.get(path, {})
         parts = path.split("/")
         if path.endswith(".ndjson"):
+            # The vectors carry no schemas, so, as for a per-record folder, any kind that is a
+            # key is taken as the set's kind.
             kind = parts[1][:-len(".ndjson")] if len(parts) == 2 else None
-            if kind is None or kind != entry.get("record_type", "").rsplit(".", 1)[-1]:
+            if kind is None or not is_key(kind):
                 return f"{path}: a record set is records/<kind>.ndjson"
             problem, keys = record_set_problem(data, entry)
             if problem:
@@ -614,7 +664,10 @@ def record_problem(entries, listed):
                 record = json.loads(data)
             except ValueError:
                 return f"{path}: doesn't parse"
-            keys = [record.get("id") or parts[2][:-len(".json")]]
+            stem = parts[2][:-len(".json")]
+            if "id" in record and record["id"] != stem:
+                return f"{path}: its id isn't its file name"
+            keys = [stem]
         for key in keys:
             if (kind, key) in seen:
                 return f"{kind}:{key} appears twice"

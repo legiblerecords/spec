@@ -78,13 +78,20 @@ A bundle can hold many records of one type in one file, a **record set**, so tha
 
 **The rule.** Each `kind:key` appears exactly once in a bundle, whether in a per-record file or a record set, and whatever the record's version. References name no version, so this is what makes every reference resolve to one record. A repeated `kind:key` is `bad_bundle`.
 
-**Layout.** A record set is the file `records/<kind>.ndjson`, where `<kind>` is named as for a per-record file's folder ([§ References](#references)). There is at most one per kind, because its name is its kind. A set holds records of one `$type` and one `version`; a bundle that mixes versions of a type puts one version in the set and the other in per-record files, and the rule above keeps their keys apart. A bundle may use both forms for different kinds, or for one kind across versions.
+**Layout.** A record set is the file `records/<kind>.ndjson`, where `<kind>` is named as for a per-record file's folder ([§ References](#references)): the type's short name (its schema's `title`). A reader that doesn't have the type's schema takes the file name as the kind, as it does a per-record folder, provided it is a key. There is at most one per kind, because its name is its kind. A set holds records of one `$type` and one `version`; a bundle that mixes versions of a type puts one version in the set and the other in per-record files, and the rule above keeps their keys apart. A bundle may use both forms for different kinds, or for one kind across versions.
 
 **Lines.** One complete Legible Record per line, with the `$type` and `version` its manifest entry gives and an `id` that is its key.
 
 - The file is UTF-8 with no byte order mark.
-- Each line is compact canonical JSON: keys sorted, no whitespace outside strings, numbers in their shortest form, text as UTF-8 rather than `\u` escapes. Each line ends with `\n` (not `\r\n`), the last one included. There are no blank lines.
+- Each line is compact canonical JSON, the same bytes from every writer:
+  - no whitespace outside strings;
+  - object keys sorted by their UTF-8 bytes (not by UTF-16 code units, as RFC 8785 sorts them), and no key twice;
+  - strings as UTF-8, escaping only what JSON requires: `\"`, `\\`, `\b`, `\f`, `\n`, `\r` and `\t`, and every other character from U+0000 to U+001F as `\u00xx` with lowercase hex. Nothing else is escaped, and a lone surrogate is refused;
+  - every number read as an IEEE 754 double and written as ECMAScript writes it ([RFC 8785 § 3.2.2.3](https://www.rfc-editor.org/rfc/rfc8785#section-3.2.2.3)): `7.5`, `0.00001`, `1e-7`, `1e+21`, `123456789`. A number whose text isn't that, such as `7.50`, `1e-05`, or an integer too large for a double to hold exactly, isn't canonical. `NaN` and `Infinity` aren't JSON.
+- Each line ends with `\n` (not `\r\n`), the last one included. There are no blank lines.
 - Lines are sorted by `id`, compared as bytes, and no `id` repeats. The same records therefore always give the same bytes, so a set's hash, and a signature over its manifest, change only when its records do.
+
+**Per-record files.** A per-record file's name is its record's key: when the record has an `id`, it is the file's name without `.json`, and a file whose `id` differs is `bad_bundle`. So each record has one name, whichever form it travels in.
 
 **Manifest.** A record set's entry has `path`, `sha256`, `record_type`, `record_version` and `count`, the number of lines. `count` is required on a record set's entry and not allowed on any other entry.
 
