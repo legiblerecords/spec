@@ -11,10 +11,11 @@
       "properties": {
         "id": {
           "description": "The feed's id, <publisher>/<slug>.",
-          "pattern": "^(?=[^/]{1,253}/)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+/[a-z0-9]+(-[a-z0-9]+)*$",
+          "pattern": "^(?=[^\\/]{1,253}\\/)[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+\\/[a-z0-9]+(-[a-z0-9]+)*$",
           "type": "string"
         },
         "stream": {
+          "description": "The stream within the feed.",
           "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug"
         }
       },
@@ -60,6 +61,7 @@
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/produced_by"
     },
     "published_at": {
+      "description": "When the publisher made this bundle. Required when the bundle is in a feed.",
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime"
     },
     "source": {

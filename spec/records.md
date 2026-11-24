@@ -73,7 +73,7 @@ The manifest has two more optional fields, so that a signature can say more than
 | Field | Holds |
 |---|---|
 | `published_at` | `common.datetime`: when the publisher made this bundle. A bundle in a feed must have it. |
-| `feed` | `{ id, stream }`: the feed and stream the bundle was published for, when it was. `id` is `<publisher>/<slug>`, and `stream` is a `common.slug`. |
+| `feed` | `{ id, stream }`: the feed and stream the bundle was published for, when it was published in one. `id` is `<publisher>/<slug>`, and `stream` is a `common.slug`. |
 
 A **publisher** is a domain the signer controls, written as a lowercase domain: labels of letters, digits and hyphens, none starting or ending with a hyphen, at least two labels joined by `.`, at most 253 characters, with no scheme, port or path. It is [`common.domain`](../schemas/org.legiblerecords.common/v1.yaml); everything in this spec that names a publisher, including the `<publisher>` in a feed id, uses that pattern.
 
@@ -109,7 +109,7 @@ Ed25519 is deterministic, so a signer given the same key and manifest writes the
 
 In addition to the checks above:
 
-1. If `manifest.sig` is present, find the key named by `publisher` and `key` among the keys the reader trusts, and verify the signature over the context string and `manifest.json`'s bytes. A signature that doesn't verify, or names an unknown algorithm, is an error, not a downgrade to unverified.
+1. If `manifest.sig` is present, find the key named by `publisher` and `key` among the keys the reader trusts, and verify the signature over the context string and `manifest.json`'s bytes. A signature that doesn't verify, names an unknown algorithm, names an unknown key, or was made by a revoked key is an error, not a downgrade to unverified.
 2. If it is absent, the bundle is **unverified**. A reader says so wherever it shows the bundle, and may refuse it by policy. A reader that has pinned a key for the bundle's publisher refuses an unsigned bundle from it.
 
 ### Encrypted bundles
