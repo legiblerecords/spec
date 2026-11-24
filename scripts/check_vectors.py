@@ -555,6 +555,11 @@ def bundle_outcome(entries, trust, expected_publisher, trusted, now):
     return status
 
 
+def is_int(value):
+    """A JSON integer: Python's bool is an int, and 1.0 == 1, so neither is enough."""
+    return type(value) is int
+
+
 def is_key(text):
     return isinstance(text, str) and text != "" and all(c in "abcdefghijklmnopqrstuvwxyz0123456789-" for c in text)
 
@@ -608,8 +613,10 @@ def refuse_constant(name):
 
 def record_set_problem(data, entry):
     """What's wrong with a record set, or None (records.md § Record sets). Its ids when sound."""
-    if not isinstance(entry.get("count"), int):
+    if not is_int(entry.get("count")):
         return "no count", None
+    if type(entry.get("record_type")) is not str or not is_int(entry.get("record_version")):
+        return "its entry needs a string record_type and an integer record_version", None
     if not data.endswith(b"\n"):
         return "no final newline", None
     ids = []
@@ -624,7 +631,8 @@ def record_set_problem(data, entry):
             canonical_form = None
         if canonical_form != line + b"\n":
             return f"line {n} isn't canonical", None
-        if record.get("$type") != entry.get("record_type") or record.get("version") != entry.get("record_version"):
+        if record.get("$type") != entry["record_type"] or not is_int(record.get("version")) \
+                or record["version"] != entry["record_version"]:
             return f"line {n} isn't a {entry.get('record_type')} v{entry.get('record_version')}", None
         if not is_key(record.get("id")):
             return f"line {n} has no id that is a key", None
@@ -657,13 +665,18 @@ def record_problem(entries, listed):
             if problem:
                 return f"{path}: {problem}"
         else:
-            if "count" in entry or len(parts) != 3 or not path.endswith(".json"):
+            if "count" in entry:
                 return f"{path}: count is only for a record set"
+            if len(parts) != 3 or not path.endswith(".json"):
+                return f"{path}: a record belongs at records/<kind>/<key>.json"
             kind = parts[1]
             try:
                 record = json.loads(data)
             except ValueError:
                 return f"{path}: doesn't parse"
+            if type(record) is not dict or record.get("$type") != entry.get("record_type") \
+                    or not is_int(record.get("version")) or record["version"] != entry.get("record_version"):
+                return f"{path}: isn't a record of the type and version its entry gives"
             stem = parts[2][:-len(".json")]
             if "id" in record and record["id"] != stem:
                 return f"{path}: its id isn't its file name"

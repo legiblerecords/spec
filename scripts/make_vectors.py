@@ -446,7 +446,8 @@ def bundle_manifest(files, published_at=BUNDLE_PUBLISHED_AT, entries=None, **ext
             entry.update(record_type=first["$type"], record_version=first["version"], count=len(lines))
         elif path.startswith("records/"):
             record = json.loads(files[path])
-            entry.update(record_type=record["$type"], record_version=record["version"])
+            if isinstance(record, dict):
+                entry.update(record_type=record["$type"], record_version=record["version"])
         else:
             entry["media_type"] = "text/plain"
         entry.update((entries or {}).get(path, {}))
@@ -640,6 +641,19 @@ def bundle_cases():
         files=number_text(b'"count":123456789', b'"count":18446744073709551616'))
     add("number-nan", trust(), bad, expected_publisher=None,
         files=number_text(b'"count":123456789', b'"count":NaN'))
+    # Types are exact: true isn't 1, and a manifest's count and record_type have their types.
+    add("line-version-true", trust(), bad, expected_publisher=None,
+        files=with_set(canonical_line(dict(alerts[0], version=True))),
+        entries={"records/alert.ndjson": {"record_version": 1}})
+    add("count-true", trust(), bad, expected_publisher=None,
+        files=with_set(canonical_line(alerts[0])), entries={"records/alert.ndjson": {"count": True}})
+    add("record-type-not-string", trust(), bad, expected_publisher=None,
+        files=with_set(sorted_set), entries={"records/alert.ndjson": {"record_type": 5}})
+    add("record-file-not-object", trust(), bad, expected_publisher=None,
+        files=dict(bundle_files(), **{"records/alert/a-1.json": b"[1,2]\n"}),
+        entries={"records/alert/a-1.json": {"record_type": "example.alert", "record_version": 1}})
+    add("record-path-too-deep", trust(), bad, expected_publisher=None,
+        files=dict(bundle_files(), **{"records/alert/x/a-1.json": stored_json(alert("a-1"))}))
 
     files = {}
     for name, trust_, expected_publisher, expect, entries, now, repeated in cases:
