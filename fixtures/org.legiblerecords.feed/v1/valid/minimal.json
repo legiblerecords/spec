@@ -1,0 +1,9 @@
+{
+  "$type": "org.legiblerecords.feed",
+  "version": 1,
+  "id": "acme.example/track",
+  "publisher": "acme.example",
+  "audience": "Monorail, for Track",
+  "updated_at": "2026-11-24T10:00:00Z",
+  "streams": []
+}

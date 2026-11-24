@@ -1,0 +1,33 @@
+type: org.legiblerecords.feed
+version: 1
+title: feed
+description: A feed index - the streams a publisher offers one audience, each with its current bundle.
+fields:
+  id: common.feedId -- The feed's id, <publisher>/<slug>, stable for the feed's life. A signed bundle's feed.id must match it.
+  publisher: common.domain -- The domain that publishes the feed, and the first part of its id.
+  audience: string -- Who the feed is for, for people to read. Not enforced; the credential is.
+  updated_at: common.datetime -- When the publisher wrote this index. A reader refuses one earlier than the last it accepted.
+  streams:
+    description: The feed's streams. Each has exactly one current bundle.
+    items:
+      fields:
+        id: common.slug -- Unique in the feed.
+        title: string -- For people.
+        record_types: string[] -- The $types the stream carries, so a reader can route it before fetching it.
+        bundle: /^bundles\/[0-9a-f]{64}\.zip(\.age)?$/ -- The bundle's path from the feed's base, named by its SHA-256.
+        sha256: common.sha256 -- Of the bundle file as stored, the ciphertext for an encrypted feed.
+        published_at: common.datetime -- When the publisher made the bundle, as in its manifest.
+examples:
+  - $type: org.legiblerecords.feed
+    version: 1
+    id: acme.example/track
+    publisher: acme.example
+    audience: Monorail, for Track
+    updated_at: 2026-11-24T10:00:00Z
+    streams:
+      - id: policy-acknowledgments
+        title: Policy acknowledgments
+        record_types: [tech.monorail.policy.acknowledgment]
+        bundle: bundles/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.zip
+        sha256: ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb
+        published_at: 2026-11-24T10:00:00Z

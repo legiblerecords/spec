@@ -1,0 +1,9 @@
+{
+  "$type": "org.legiblerecords.bundle",
+  "feed": {
+    "id": "acme.example/track"
+  },
+  "files": [],
+  "published_at": "2026-11-24T10:00:00Z",
+  "version": 1
+}

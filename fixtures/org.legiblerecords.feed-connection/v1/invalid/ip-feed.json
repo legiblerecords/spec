@@ -1,0 +1,14 @@
+{
+  "$type": "org.legiblerecords.feed-connection",
+  "version": 1,
+  "comment": "A feed id's publisher can't be an IP address.",
+  "feed": "192.0.2.1/track",
+  "location": {
+    "kind": "https",
+    "url": "https://feeds.acme.example/track/"
+  },
+  "auth": {
+    "method": "bearer",
+    "token_env": "ACME_FEED_TOKEN"
+  }
+}

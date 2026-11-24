@@ -1,0 +1,10 @@
+{
+  "$type": "org.legiblerecords.feed",
+  "version": 1,
+  "comment": "Labels may be all digits, except the last.",
+  "id": "2026.acme.example/track",
+  "publisher": "2026.acme.example",
+  "audience": "Monorail, for Track",
+  "updated_at": "2026-11-24T10:00:00Z",
+  "streams": []
+}

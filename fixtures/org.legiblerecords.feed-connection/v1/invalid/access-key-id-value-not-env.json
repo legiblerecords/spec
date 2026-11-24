@@ -1,0 +1,8 @@
+{
+  "$type": "org.legiblerecords.feed-connection",
+  "version": 1,
+  "comment": "A connection file names environment variables, never credentials: access_key_id_env, not access_key_id.",
+  "feed": "acme.example/track",
+  "location": { "kind": "s3", "endpoint": "https://storage.acme.example", "region": "auto", "bucket": "acme-legible", "prefix": "feeds/track/" },
+  "auth": { "method": "s3", "access_key_id": "INVENTEDKEYID", "secret_access_key_env": "ACME_FEED_SECRET" }
+}

@@ -1,0 +1,29 @@
+type: org.legiblerecords.keys
+version: 1
+title: keys
+description: A publisher's key set - the keys it signs with, and when each stopped being used.
+fields:
+  publisher: common.domain -- The domain that serves this key set.
+  updated_at: common.datetime -- When the publisher last changed this key set. A reader refuses one older than the set it holds.
+  keys:
+    description: The publisher's keys, current and past. At least one.
+    items:
+      fields:
+        id: /^[a-z0-9][a-z0-9.-]{0,63}$/ -- The key's id within this publisher, such as 2026-11.
+        alg: known(ed25519) -- The signature algorithm. Only ed25519 is defined.
+        public_key: /^[A-Za-z0-9_-]{43}$/ -- The 32-byte public key, base64url without padding.
+        created_at: common.datetime
+        retired_at?: common.datetime -- When the publisher stopped signing with it. What it signed still verifies.
+        revoked_at?: common.datetime -- When it was found compromised. Nothing it signed verifies, at any date.
+    json:
+      minItems: 1
+examples:
+  - $type: org.legiblerecords.keys
+    version: 1
+    publisher: acme.example
+    updated_at: 2026-11-24T00:00:00Z
+    keys:
+      - id: 2026-11
+        alg: ed25519
+        public_key: A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg
+        created_at: 2026-11-24T00:00:00Z

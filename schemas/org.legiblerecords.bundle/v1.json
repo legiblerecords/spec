@@ -2,9 +2,45 @@
   "$id": "https://legiblerecords.org/schemas/org.legiblerecords.bundle/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "description": "The manifest of a bundle - every file it holds, with its hash.",
+  "examples": [
+    {
+      "$type": "org.legiblerecords.bundle",
+      "files": [
+        {
+          "path": "records/control/mfa-company-accounts.json",
+          "record_type": "tech.monorail.controls.control",
+          "record_version": 1,
+          "sha256": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+        }
+      ],
+      "produced_by": {
+        "app": "track",
+        "build": "2026.11.21"
+      },
+      "version": 1
+    }
+  ],
   "properties": {
     "$type": {
       "const": "org.legiblerecords.bundle"
+    },
+    "feed": {
+      "description": "The feed and stream this bundle was published for.",
+      "properties": {
+        "id": {
+          "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/feedId",
+          "description": "The feed's id, <publisher>/<slug>."
+        },
+        "stream": {
+          "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
+          "description": "The stream within the feed."
+        }
+      },
+      "required": [
+        "id",
+        "stream"
+      ],
+      "type": "object"
     },
     "files": {
       "items": {
@@ -40,6 +76,10 @@
     },
     "produced_by": {
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/produced_by"
+    },
+    "published_at": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime",
+      "description": "When the publisher made this bundle. Required when the bundle is in a feed."
     },
     "source": {
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/source"

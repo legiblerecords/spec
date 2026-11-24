@@ -4,10 +4,20 @@ title: common
 description: Definitions every Legible Records type can use.
 defs:
   slug: /^[a-z0-9]+(-[a-z0-9]+)*$/ -- A lowercase key made of letters, digits and single hyphens.
+  domain:
+    description: A publisher, a lowercase domain of two or more labels whose last label isn't all digits, with no scheme, port or path. At most 253 characters.
+    type: /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+([0-9]*[a-z]([a-z0-9-]*[a-z0-9])?|[0-9]+-[a-z0-9-]*[a-z0-9])$/
+    json:
+      maxLength: 253
+  feedId:
+    description: A feed's id, <publisher>/<slug>, a domain and a slug. At most 317 characters; a reader also checks that the publisher part is a domain.
+    type: /^([a-z0-9]([a-z0-9-]*[a-z0-9])?\.)+([0-9]*[a-z]([a-z0-9-]*[a-z0-9])?|[0-9]+-[a-z0-9-]*[a-z0-9])\/[a-z0-9]+(-[a-z0-9]+)*$/
+    json:
+      maxLength: 317
   date: string(date)
   datetime: string(date-time)
   email: string(email)
-  refString: /^[a-z][a-z-]*:[a-z0-9-]+(#[a-z0-9-]+)?$/ -- A reference to another record, kind:key, optionally #part.
+  refString: '/^[a-z][a-z-]*:[a-z0-9-]+(#[a-z0-9-]+)?$/ -- A reference to another record, kind:key, optionally #part.'
   sha256: /^[0-9a-f]{64}$/
   produced_by:
     description: What wrote the file.

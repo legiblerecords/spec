@@ -1,0 +1,26 @@
+{
+  "$type": "org.legiblerecords.feed",
+  "version": 1,
+  "id": "acme.example/track",
+  "publisher": "acme.example",
+  "audience": "Monorail, for Track",
+  "updated_at": "2026-11-24T10:00:00Z",
+  "streams": [
+    {
+      "id": "policy-acknowledgments",
+      "title": "Policy acknowledgments",
+      "record_types": ["tech.monorail.policy.acknowledgment"],
+      "bundle": "bundles/ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb.zip",
+      "sha256": "ca978112ca1bbdcafac231b39a23dc4da786eff8147c4e72b9807785afee48bb",
+      "published_at": "2026-11-24T10:00:00Z"
+    },
+    {
+      "id": "pentest-2026-q3",
+      "title": "Penetration test, third quarter 2026",
+      "record_types": ["example.report", "example.finding"],
+      "bundle": "bundles/3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d.zip.age",
+      "sha256": "3e23e8160039594a33894f6564e1b1348bbd7a0088d42c4acb73eeaed59c009d",
+      "published_at": "2026-10-01T09:00:00+02:00"
+    }
+  ]
+}

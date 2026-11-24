@@ -1,0 +1,90 @@
+{
+  "$id": "https://legiblerecords.org/schemas/org.legiblerecords.keys/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A publisher's key set - the keys it signs with, and when each stopped being used.",
+  "examples": [
+    {
+      "$type": "org.legiblerecords.keys",
+      "keys": [
+        {
+          "alg": "ed25519",
+          "created_at": "2026-11-24T00:00:00Z",
+          "id": "2026-11",
+          "public_key": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg"
+        }
+      ],
+      "publisher": "acme.example",
+      "updated_at": "2026-11-24T00:00:00Z",
+      "version": 1
+    }
+  ],
+  "properties": {
+    "$type": {
+      "const": "org.legiblerecords.keys"
+    },
+    "keys": {
+      "description": "The publisher's keys, current and past. At least one.",
+      "items": {
+        "properties": {
+          "alg": {
+            "description": "The signature algorithm. Only ed25519 is defined.",
+            "examples": [
+              "ed25519"
+            ],
+            "type": "string"
+          },
+          "created_at": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime"
+          },
+          "id": {
+            "description": "The key's id within this publisher, such as 2026-11.",
+            "pattern": "^[a-z0-9][a-z0-9.-]{0,63}$",
+            "type": "string"
+          },
+          "public_key": {
+            "description": "The 32-byte public key, base64url without padding.",
+            "pattern": "^[A-Za-z0-9_-]{43}$",
+            "type": "string"
+          },
+          "retired_at": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime",
+            "description": "When the publisher stopped signing with it. What it signed still verifies."
+          },
+          "revoked_at": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime",
+            "description": "When it was found compromised. Nothing it signed verifies, at any date."
+          }
+        },
+        "required": [
+          "alg",
+          "created_at",
+          "id",
+          "public_key"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "publisher": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/domain",
+      "description": "The domain that serves this key set."
+    },
+    "updated_at": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime",
+      "description": "When the publisher last changed this key set. A reader refuses one older than the set it holds."
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "$type",
+    "version",
+    "keys",
+    "publisher",
+    "updated_at"
+  ],
+  "title": "keys",
+  "type": "object"
+}

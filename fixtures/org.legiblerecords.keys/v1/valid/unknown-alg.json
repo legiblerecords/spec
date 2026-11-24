@@ -1,0 +1,11 @@
+{
+  "$type": "org.legiblerecords.keys",
+  "version": 1,
+  "comment": "alg is an open list in the schema: a reader skips a key whose alg it doesn't know, and refuses a signature that names one.",
+  "publisher": "acme.example",
+  "updated_at": "2026-11-24T00:00:00Z",
+  "keys": [
+    { "id": "2026-11", "alg": "ed25519", "public_key": "A6EHv_POEL4dcN0Y50vAmWfk1jCbpQ1fHdyGZBJVMbg", "created_at": "2026-11-24T00:00:00Z" },
+    { "id": "pq-1", "alg": "ml-dsa-44", "public_key": "Kay64UG8yvCyLhqU000LxzYeUm0L_hLIl5S8kyKWbdc", "created_at": "2026-11-24T00:00:00Z" }
+  ]
+}

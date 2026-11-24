@@ -1,0 +1,10 @@
+{
+  "$type": "org.legiblerecords.feed",
+  "version": 1,
+  "comment": "An IP address isn't a publisher: its last label is all digits.",
+  "id": "acme.example/track",
+  "publisher": "192.0.2.1",
+  "audience": "Monorail, for Track",
+  "updated_at": "2026-11-24T10:00:00Z",
+  "streams": []
+}

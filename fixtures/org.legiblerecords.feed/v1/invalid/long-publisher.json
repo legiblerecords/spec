@@ -1,0 +1,10 @@
+{
+  "$type": "org.legiblerecords.feed",
+  "version": 1,
+  "comment": "A publisher is at most 253 characters.",
+  "id": "acme.example/track",
+  "publisher": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "audience": "Monorail, for Track",
+  "updated_at": "2026-11-24T10:00:00Z",
+  "streams": []
+}
