@@ -19,10 +19,12 @@ For a published type, give the base of its `$id` with `--base`. Shared names suc
 
 | Command | Does |
 |---|---|
-| `legible bundle pack <file or dir>… -o <bundle.zip>` | Packs records and attachments into a bundle |
+| `legible bundle pack <file or dir>… -o <bundle.zip>` | Packs records and attachments into a bundle, with record sets for large kinds |
 | `legible bundle verify <bundle>` | Checks hashes, file list, references and signature |
 | `legible bundle unpack <bundle> -d <dir>` | Verifies, then writes the files into a new or empty directory |
 | `legible bundle sign <bundle.zip> -k <key.json> -o <signed.zip>` | Signs a bundle's manifest as stored |
+
+`pack` writes a kind with more than 1,000 records as a record set. `--set <kind>` (repeatable) asks for one, and `--no-sets` writes every record as its own file.
 
 `verify` and `unpack` take `--pin <publisher>/<id>=<public_key>` and `--key-set <keys.json>`, each repeatable, and `-i <identity>` to decrypt.
 
