@@ -105,11 +105,53 @@ then the bytes. The context string ends in a newline. Every kind of signature in
 
 Ed25519 is deterministic, so a signer given the same key and manifest writes the same `manifest.sig`. [vectors/signatures.json](../vectors/signatures.json) fixes keys, messages and expected outcomes: each case gives a context, a public key, the message bytes (`message_b64`), a `signature_file`, and `valid` or the outcome code a reader returns. The private keys behind the vectors are published in `scripts/make_vectors.py` for testing only; never sign anything real with them.
 
+### Key sets
+
+A publisher that controls a domain can serve its keys there, as a record of type [`org.legiblerecords.keys`](../schemas/org.legiblerecords.keys/v1.yaml) at
+
+```
+https://<publisher>/.well-known/legible-records/keys.json
+```
+
+```json
+{
+  "$type": "org.legiblerecords.keys",
+  "version": 1,
+  "publisher": "acme.example",
+  "keys": [
+    { "id": "2026-11", "alg": "ed25519", "public_key": "<base64url>", "created_at": "2026-11-24T00:00:00Z" },
+    { "id": "2025-06", "alg": "ed25519", "public_key": "<base64url>", "created_at": "2025-06-01T00:00:00Z", "retired_at": "2026-11-24T00:00:00Z" },
+    { "id": "2024-01", "alg": "ed25519", "public_key": "<base64url>", "created_at": "2024-01-01T00:00:00Z", "revoked_at": "2025-06-01T00:00:00Z" }
+  ]
+}
+```
+
+It is served over HTTPS, and that is what ties a key to a name: whoever controls the domain controls its key set. `publisher` is the domain it is served from. `keys` has at least one key; a key's `id` is unique in the set. A reader ignores a key whose `alg` it doesn't know, and a signature that names one is `unknown_alg`.
+
+**Retired and revoked.** A key's life ends in one of two ways.
+
+- `retired_at` is ordinary rotation: the publisher stopped signing with the key. Bundles it signed still verify, whatever their `published_at`, because the key was never compromised.
+- `revoked_at` means the key is compromised. Nothing it signed verifies, at any `published_at`, because whoever holds the key can write any date into a manifest. A signature by a revoked key is `revoked_key`. A reader that fetches a key set that revokes a key re-checks what it already holds, and treats every bundle that key signed as no longer verified. The publisher re-signs and republishes what should stay. A revocation that applies only from a date was considered and dropped for the same reason. A key that has both is revoked, and a reader never clears either date from a key it has seen.
+
+**Endorsement.** A reader keeps the last key set it accepted. A key set may be served with `keys.sig`, at `/.well-known/legible-records/keys.sig`: the signature file of [§ Signed bundles](#signed-bundles) with the context `keys`, made over the exact bytes of `keys.json` as served. A key is **new** when the reader holds no key with that id and public key for this publisher. A reader decides about a key set this way:
+
+1. With `keys.sig`, the signature must verify, name this publisher, and be made by a key that the reader holds as an active key: in the previous accepted set, neither retired nor revoked there. Otherwise the key set is refused as `bad_endorsement`: the signature doesn't verify, is the wrong kind of signature (such as one made with the manifest context), or is by a key that may not endorse. The new set may retire the endorsing key, which is how a rotation retires the key that signs it, but not revoke it: a compromised key can't vouch for a set that says so.
+2. With a valid endorsement the reader accepts the key set, new keys included, without asking.
+3. Without `keys.sig`, a key set with a new key is `needs_approval`: a person decides, or the reader's policy is to trust the domain's key set as served (trust on HTTPS). A key set with no new key is accepted, so ending a key's life never needs an endorsement.
+
+A reader with no previous key set can still be given **pins**: keys it holds from its configuration, each a publisher, a key id and a public key. A stateless reader keeps nothing between runs, so its pins stand in for the previous set. It accepts a key set when `keys.sig` is by a pinned key that the new set doesn't revoke; the new set may retire it, as in a rotation. If the signature names a pinned key and doesn't verify, or the new set revokes that key, the key set is `bad_endorsement`. A signature by a key that isn't pinned is no endorsement: the key set is `needs_approval` if it has a new key, so a second rotation waits for a person to update the pins.
+
+Readers fetch the key set whenever the publisher serves one, including readers with pinned keys, so that rotation and revocation reach them. Pinned keys are where that chain starts, not a replacement for it.
+
+A **publisher without a key set**, such as a script in a client's CI, still names a domain it controls in `manifest.sig` but serves nothing there. Its public key goes in the reader's configuration and is pinned there; it has no rotation or revocation except a person changing the pin.
+
+[vectors/key-sets/](../vectors/key-sets/) holds the cases, one directory each: `case.json` gives `name`, `previous` (the last accepted key set, or `null`), `pins` and `expect` (`accepted`, `needs_approval` or `bad_endorsement`); `keys.json` is the key set as served, and `keys.sig` the endorsement when there is one. They use the test keys from `scripts/make_vectors.py`.
+
 ### Reading a signed bundle
 
 In addition to the checks above:
 
-1. If `manifest.sig` is present, find the key named by `publisher` and `key` among the keys the reader trusts, and verify the signature over the context string and `manifest.json`'s bytes. A signature that doesn't verify, names an unknown algorithm, names an unknown key, or was made by a revoked key is an error, not a downgrade to unverified.
+1. If `manifest.sig` is present, find the key named by `publisher` and `key` among the keys the reader trusts (pinned, or in the publisher's accepted [key set](#key-sets)), and verify the signature over the context string and `manifest.json`'s bytes. A signature that doesn't verify, names an unknown algorithm, names an unknown key, or was made by a revoked key is an error, not a downgrade to unverified.
 2. If it is absent, the bundle is **unverified**. A reader says so wherever it shows the bundle, and may refuse it by policy. A reader that has pinned a key for the bundle's publisher refuses an unsigned bundle from it.
 
 ### Encrypted bundles

@@ -33,6 +33,7 @@ TEST_SEEDS = {
     "acme.example/2025-06": bytes(range(32, 64)),
     "acme.example/2024-01": bytes(range(64, 96)),
     "other.example/1": bytes(range(96, 128)),
+    "acme.example/2027-03": bytes(range(128, 160)),
 }
 
 CONTEXTS = {
@@ -137,31 +138,137 @@ def signatures():
     return {"cases": cases}
 
 
+def key_entry(name, created_at, **ends):
+    """A key set entry for the test key `name`; `ends` is retired_at and/or revoked_at."""
+    entry = {
+        "id": name.split("/", 1)[1],
+        "alg": "ed25519",
+        "public_key": public_key(name),
+        "created_at": created_at,
+    }
+    entry.update(ends)
+    return entry
+
+
+def key_set(*entries, publisher="acme.example"):
+    return {
+        "$type": "org.legiblerecords.keys",
+        "version": 1,
+        "publisher": publisher,
+        "keys": list(entries),
+    }
+
+
+def pin(name):
+    publisher, key = name.split("/", 1)
+    return {"publisher": publisher, "id": key, "public_key": public_key(name)}
+
+
+K2024 = ("acme.example/2024-01", "2024-01-01T00:00:00Z")
+K2025 = ("acme.example/2025-06", "2025-06-01T00:00:00Z")
+K2026 = ("acme.example/2026-11", "2026-11-24T00:00:00Z")
+K2027 = ("acme.example/2027-03", "2027-03-01T00:00:00Z")
+RETIRED_2026 = {"retired_at": "2027-03-01T00:00:00Z"}
+RETIRED = {"retired_at": "2026-11-24T00:00:00Z"}
+REVOKED = {"revoked_at": "2026-06-01T00:00:00Z"}
+
+
+def key_set_cases():
+    """Directories under vectors/key-sets/: case.json, keys.json, and keys.sig when signed."""
+    cases = []
+
+    def add(name, previous, pins, new, expect, signer=None, context="keys"):
+        cases.append((name, previous, pins, new, expect, signer, context))
+
+    # The endorser is active in the previous set; the new set retires it and adds 2026-11.
+    prev = key_set(key_entry(*K2025))
+    new = key_set(key_entry(*K2026), key_entry(*K2025, **RETIRED))
+    add("endorsed-by-active", prev, [], new, "accepted", signer=K2025[0])
+    # The endorser was already retired in the previous set.
+    prev = key_set(key_entry(*K2025, **RETIRED), key_entry(*K2026))
+    new = key_set(key_entry(*K2027), key_entry(*K2026), key_entry(*K2025, **RETIRED))
+    add("endorsed-by-retired", prev, [], new, "bad_endorsement", signer=K2025[0])
+    # The endorser was already revoked in the previous set.
+    prev = key_set(key_entry(*K2025, **REVOKED), key_entry(*K2026))
+    new = key_set(key_entry(*K2027), key_entry(*K2026), key_entry(*K2025, **REVOKED))
+    add("endorsed-by-revoked", prev, [], new, "bad_endorsement", signer=K2025[0])
+    # A key is added and nothing endorses it.
+    prev = key_set(key_entry(*K2025))
+    new = key_set(key_entry(*K2026), key_entry(*K2025))
+    add("new-key-unsigned", prev, [], new, "needs_approval")
+    # Only an end date is added, so nothing needs approval.
+    prev = key_set(key_entry(*K2025), key_entry(*K2026))
+    new = key_set(key_entry(*K2025, **RETIRED), key_entry(*K2026))
+    add("no-new-key-unsigned", prev, [], new, "accepted")
+    # No previous set: the endorser is pinned, and the new set doesn't revoke it.
+    new = key_set(key_entry(*K2026), key_entry(*K2025, **RETIRED))
+    add("stateless-endorsed-by-pin", None, [pin(K2025[0])], new, "accepted", signer=K2025[0])
+    # No previous set: the endorser is a key the reader has no pin for.
+    new = key_set(key_entry(*K2027), key_entry(*K2026, **RETIRED_2026), key_entry(*K2025, **RETIRED))
+    add("stateless-second-rotation", None, [pin(K2025[0])], new, "needs_approval", signer=K2026[0])
+    # Signed with the manifest context instead of the keys context.
+    prev = key_set(key_entry(*K2025))
+    new = key_set(key_entry(*K2026), key_entry(*K2025, **RETIRED))
+    add("endorsement-wrong-context", prev, [], new, "bad_endorsement",
+        signer=K2025[0], context="manifest")
+
+    files = {}
+    for name, previous, pins, new, expect, signer, context in cases:
+        stored = stored_json(new)
+        base = f"key-sets/{name}/"
+        files[base + "case.json"] = stored_json(
+            {"name": name, "previous": previous, "pins": pins, "expect": expect})
+        files[base + "keys.json"] = stored
+        if signer:
+            files[base + "keys.sig"] = stored_json(
+                signature_file(signer, sign(signer, context, stored)))
+    return files
+
+
 # File name under vectors/ -> function returning its JSON value.
 VECTOR_FILES = {
     "signatures.json": signatures,
 }
+
+# Functions returning {path under vectors/: bytes} for vectors kept as directories.
+VECTOR_TREES = [key_set_cases]
 
 
 def render(value):
     return json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
 
+def expected_files():
+    """Every generated file: path under vectors/ -> bytes."""
+    files = {name: render(build()).encode("utf-8") for name, build in VECTOR_FILES.items()}
+    for tree in VECTOR_TREES:
+        files.update(tree())
+    return files
+
+
 def main(argv):
     check = "--check" in argv[1:]
+    files = expected_files()
     stale = []
-    for name, build in VECTOR_FILES.items():
+    for name, data in files.items():
         path = ROOT / "vectors" / name
-        text = render(build())
         if check:
-            if not path.exists() or path.read_text() != text:
+            if not path.exists() or path.read_bytes() != data:
                 stale.append(name)
         else:
-            path.write_text(text)
-    for name in stale:
-        print(f"FAIL vectors/{name} is missing or out of date; run python scripts/make_vectors.py")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
     if check:
-        print(f"{len(VECTOR_FILES)} vector files checked, {len(stale)} out of date")
+        # A generated directory must hold nothing that isn't generated.
+        for tree in sorted({n.split("/", 1)[0] for n in files if "/" in n}):
+            for path in sorted((ROOT / "vectors" / tree).rglob("*")):
+                rel = path.relative_to(ROOT / "vectors").as_posix()
+                if path.is_file() and rel not in files:
+                    stale.append(rel)
+    for name in stale:
+        print(f"FAIL vectors/{name} is missing, out of date or not generated; run python scripts/make_vectors.py")
+    if check:
+        print(f"{len(files)} vector files checked, {len(stale)} out of date")
     return 1 if stale else 0
 
 

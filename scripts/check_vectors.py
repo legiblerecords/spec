@@ -8,6 +8,7 @@ mistake in them is caught before an implementation is tested against it.
 - every expected body is a valid JSON Schema 2020-12 schema;
 - every restricted-YAML case expects either a value or a known error.
 
+- every key-set case, re-checked under rules written here, gives its expected outcome;
 - every signature case verifies, or fails with its expected code, under a
   re-check written here rather than imported from make_vectors.py.
 
@@ -37,6 +38,7 @@ SIGNATURE_CONTEXTS = {
     "keys": b"legible-records/v1 keys\n",
 }
 SIGNATURE_CODES = {"bad_signature_file", "unknown_alg", "bad_signature"}
+KEY_SET_OUTCOMES = {"accepted", "needs_approval", "bad_endorsement"}
 B64URL = re.compile(r"^[A-Za-z0-9_-]*$")
 OPTIONS = {"base", "common", "location"}
 
@@ -162,6 +164,106 @@ def check_signatures(path, problems):
     return len(data["cases"])
 
 
+def verify_endorsement(keys_bytes, sig_bytes, endorser):
+    """True when keys.sig is a keys-context signature over keys_bytes by `endorser`.
+
+    `endorser` is the (publisher, id, public_key) the reader holds for the key
+    the signature names, or None when the reader holds none.
+    """
+    try:
+        sig = json.loads(sig_bytes)
+    except ValueError:
+        return False
+    if not isinstance(sig, dict) or set(sig) != {"alg", "publisher", "key", "signature"}:
+        return False
+    if not all(isinstance(v, str) for v in sig.values()) or sig["alg"] != "ed25519":
+        return False
+    signature = unb64url(sig["signature"], 64)
+    public = unb64url(endorser[2], 32) if endorser else None
+    if signature is None or public is None:
+        return False
+    try:
+        Ed25519PublicKey.from_public_bytes(public).verify(
+            signature, SIGNATURE_CONTEXTS["keys"] + keys_bytes
+        )
+    except InvalidSignature:
+        return False
+    return True
+
+
+def key_set_outcome(case, keys_bytes, sig_bytes):
+    """What a reader returns for this key set: accepted, needs_approval or bad_endorsement."""
+    new = json.loads(keys_bytes)
+    previous = case["previous"]
+    publisher = new["publisher"]
+    held = {}  # (publisher, id) -> key entry the reader already trusts
+    if previous is not None:
+        held = {(previous["publisher"], k["id"]): k for k in previous["keys"]}
+    else:
+        held = {(p["publisher"], p["id"]): {"public_key": p["public_key"]} for p in case["pins"]}
+    added = [
+        k for k in new["keys"]
+        if held.get((publisher, k["id"]), {}).get("public_key") != k["public_key"]
+    ]
+    if sig_bytes is None:
+        return "needs_approval" if added else "accepted"
+    try:
+        sig = json.loads(sig_bytes)
+        name = (sig["publisher"], sig["key"])
+    except (ValueError, KeyError, TypeError):
+        return "bad_endorsement"
+    endorser = held.get(name)
+    if previous is not None:
+        # Against the previous accepted set: the key must be in it, neither retired nor revoked.
+        if endorser is None or endorser.get("retired_at") or endorser.get("revoked_at"):
+            return "bad_endorsement"
+    else:
+        # Stateless: only a pinned key counts, and the new set mustn't revoke it. A key
+        # that isn't pinned is no endorsement at all, not a bad one.
+        if endorser is None:
+            return "needs_approval" if added else "accepted"
+    if name[0] != publisher:
+        return "bad_endorsement"
+    # Either way, a key the new set revokes can't vouch for it.
+    if any(k["id"] == name[1] and k.get("revoked_at") for k in new["keys"]):
+        return "bad_endorsement"
+    if not verify_endorsement(keys_bytes, sig_bytes, (name[0], name[1], endorser["public_key"])):
+        return "bad_endorsement"
+    return "accepted"
+
+
+def check_key_sets(directory, problems):
+    if not directory.is_dir():
+        problems.append(f"{directory.name}: missing")
+        return 0
+    cases = sorted(p for p in directory.iterdir() if p.is_dir())
+    names = set()
+    for case_dir in cases:
+        where = f"key-sets/{case_dir.name}"
+        try:
+            case = json.loads((case_dir / "case.json").read_text())
+            keys_bytes = (case_dir / "keys.json").read_bytes()
+            json.loads(keys_bytes)
+        except (OSError, ValueError) as err:
+            problems.append(f"{where}: needs case.json and keys.json that parse: {err}")
+            continue
+        if case.get("name") != case_dir.name or case["name"] in names:
+            problems.append(f"{where}: name must be the directory's and unique")
+        names.add(case.get("name"))
+        if set(case) != {"name", "previous", "pins", "expect"}:
+            problems.append(f"{where}: case.json holds name, previous, pins and expect")
+            continue
+        if case["expect"] not in KEY_SET_OUTCOMES:
+            problems.append(f"{where}: unknown expectation {case['expect']!r}")
+            continue
+        sig_path = case_dir / "keys.sig"
+        sig_bytes = sig_path.read_bytes() if sig_path.exists() else None
+        got = key_set_outcome(case, keys_bytes, sig_bytes)
+        if got != case["expect"]:
+            problems.append(f"{where}: expected {case['expect']}, the re-check gives {got}")
+    return len(cases)
+
+
 def main():
     problems = []
     count = 0
@@ -169,6 +271,7 @@ def main():
         count += check_schema_language(path, problems)
     count += check_restricted_yaml(ROOT / "vectors" / "restricted-yaml.json", problems)
     count += check_signatures(ROOT / "vectors" / "signatures.json", problems)
+    count += check_key_sets(ROOT / "vectors" / "key-sets", problems)
     for p in problems:
         print(f"FAIL {p}")
     print(f"{count} vector cases checked, {len(problems)} problems")
