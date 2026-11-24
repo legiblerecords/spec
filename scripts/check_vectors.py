@@ -305,6 +305,15 @@ class Trust:
         return any(k.get("revoked_at") and (k["id"] == key_id or key_bytes(k["public_key"]) == public)
                    for s in sets if s for k in s["keys"])
 
+    def alias(self, publisher, key_id, public):
+        """True when `key_id` is pinned or approved and the held set, or a served set that
+        passed step 1 (held or revoking), lists these public key bytes under another id."""
+        if not any(a["publisher"] == publisher and a["id"] == key_id for a in self.anchors):
+            return False
+        sets = [self.held.get(publisher)] + [s for s in self.revoking if s["publisher"] == publisher]
+        return any(k["id"] != key_id and key_bytes(k["public_key"]) == public
+                   for s in sets if s for k in s["keys"])
+
     def lookup(self, publisher, key_id):
         """The key's public bytes, or {"error": code}: records.md § Reading a signed bundle, step 1.5."""
         found = set(self.sources(publisher, key_id))
@@ -316,6 +325,10 @@ class Trust:
         alg, public = found.pop()
         if self.revoked(publisher, key_id, public):
             return {"error": "revoked_key"}
+        if self.alias(publisher, key_id, public) and "pin-alias" not in MUTATIONS:
+            # A pinned or approved key whose bytes a key set lists under another id: one key,
+            # one name, so the pin doesn't count.
+            return {"error": "unknown_key"}
         if alg != "ed25519":
             return {"error": "unknown_alg"}
         return public

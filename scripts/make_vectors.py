@@ -499,6 +499,10 @@ def bundle_cases():
     revoked_elsewhere = key_set(key_entry(*K2026, id="2026-11-old", revoked_at="2026-11-25T00:00:00Z"))
     add("pin-revoked-under-other-id", trust(revoked_elsewhere, pins=[pin(K2026[0])]),
         {"error": "revoked_key"}, signer=K2026[0])
+    # The held set lists the pinned key's public key under another id, not revoked: one key has
+    # one name, so the pin doesn't count and a signature naming the pinned id is unknown_key.
+    alias = key_set(key_entry(*K2026, id="2026-11-b"))
+    add("pin-alias-in-key-set", trust(alias, pins=[pin(K2026[0])]), {"error": "unknown_key"}, signer=K2026[0])
     # Trust comes only from a held key set: an unsigned bundle is still refused.
     add("unsigned-key-set-only", trust(active), {"error": "unsigned_from_pinned_publisher"})
     # published_at more than 24 hours after the reader's clock.
@@ -851,6 +855,16 @@ def feed_cases():
     # ... and in one refused as bad_endorsement (2026-11 may not endorse a set that revokes it).
     add("bad-endorsement-set-revokes-signer", state, feed_dir(current, FEED_HELD),
         "revoked_key", {}, keys=served_keys(revokes_2026, K2026[0]), key_set_="bad_endorsement", after=state)
+
+    # The connection pins 2026-11's public key as 2026-11; the publisher's key set lists the
+    # same bytes as 2026-11-b. One key has one name, so the pin doesn't count and an index
+    # signed naming 2026-11 is unknown_key: whether the reader holds that set ...
+    alias = key_set(key_entry(*K2026, id="2026-11-b"))
+    state = reader_state(held, held_keys=alias)
+    add("pin-alias-held-set", state, feed_dir(current, FEED_NEW), "unknown_key", {}, after=state)
+    # ... or is served it on this poll, by a stateless reader, waiting for approval.
+    add("pin-alias-served-set", None, feed_dir(current, FEED_NEW), "unknown_key", {},
+        keys=served_keys(alias), key_set_="needs_approval")
 
     files = {}
     for name, state, feed_files, expect, connection, keys, now in cases:
