@@ -1,0 +1,13 @@
+{
+  "$type": "org.legiblerecords.bundle",
+  "files": [
+    {
+      "count": 3,
+      "path": "records/alert.ndjson",
+      "record_type": "com.example.scan.alert",
+      "record_version": 1,
+      "sha256": "2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae"
+    }
+  ],
+  "version": 1
+}

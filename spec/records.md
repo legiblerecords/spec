@@ -53,21 +53,54 @@ Several records, with or without attachments, travel as a bundle: a directory, o
 manifest.json
 manifest.sig          (optional)
 records/<kind>/<key>.json
+records/<kind>.ndjson   (a record set; see § Record sets)
 files/<sha256>
 ```
 
-`manifest.json` is itself a record, of type [`org.legiblerecords.bundle`](../schemas/org.legiblerecords.bundle/v1.yaml). It lists every file with its path, SHA-256, and for records their `$type` and `version`. `manifest.sig` is the only file in a bundle that the manifest doesn't list; any other unlisted file is an error.
+`manifest.json` is itself a record, of type [`org.legiblerecords.bundle`](../schemas/org.legiblerecords.bundle/v1.yaml). It lists every file with its path, SHA-256, and for records their `$type` and `version` (and, for a record set, its `count`). `manifest.sig` is the only file in a bundle that the manifest doesn't list; any other unlisted file is an error.
 
 A reader of a bundle checks that:
 
 - every file's hash matches the manifest;
 - every file the manifest lists is present, and every file present is listed, except `manifest.sig`;
+- each `kind:key` appears exactly once in the bundle, whether in a per-record file or a record set, and whatever the record's version;
+- every record set meets [§ Record sets](#record-sets);
 - every reference resolves to a record or attachment in the bundle;
 - `published_at`, when the manifest has it, is no more than 24 hours after the reader's clock.
 
 Any failure is an error, not a warning: in a security record, a broken link is usually the thing that matters. A reader returns `bad_bundle` for any of them ([feeds.md § Outcomes](feeds.md#outcomes)).
 
 In a zip, every entry name is a path relative to the bundle's root, with `/` separators. Before it reads any entry, a reader refuses (`bad_bundle`) a zip with two entries of the same name, a name that starts with `/`, a name with a `\`, or a name with a `.` or `..` segment. Two entries named `manifest.json` could otherwise show two readers two different manifests, and the others could write outside the directory a bundle is unpacked into.
+
+### Record sets
+
+A bundle can hold many records of one type in one file, a **record set**, so that a large dataset (vulnerability status for every repository, every device, every acknowledgment in a company) needs one zip entry rather than one per record, and a reader can process it as a stream.
+
+**The rule.** Each `kind:key` appears exactly once in a bundle, whether in a per-record file or a record set, and whatever the record's version. References name no version, so this is what makes every reference resolve to one record. A repeated `kind:key` is `bad_bundle`.
+
+**Layout.** A record set is the file `records/<kind>.ndjson`, where `<kind>` is named as for a per-record file's folder ([§ References](#references)). There is at most one per kind, because its name is its kind. A set holds records of one `$type` and one `version`; a bundle that mixes versions of a type puts one version in the set and the other in per-record files, and the rule above keeps their keys apart. A bundle may use both forms for different kinds, or for one kind across versions.
+
+**Lines.** One complete Legible Record per line, with the `$type` and `version` its manifest entry gives and an `id` that is its key.
+
+- The file is UTF-8 with no byte order mark.
+- Each line is compact canonical JSON: keys sorted, no whitespace outside strings, numbers in their shortest form, text as UTF-8 rather than `\u` escapes. Each line ends with `\n` (not `\r\n`), the last one included. There are no blank lines.
+- Lines are sorted by `id`, compared as bytes, and no `id` repeats. The same records therefore always give the same bytes, so a set's hash, and a signature over its manifest, change only when its records do.
+
+**Manifest.** A record set's entry has `path`, `sha256`, `record_type`, `record_version` and `count`, the number of lines. `count` is required on a record set's entry and not allowed on any other entry.
+
+**Reading.** A reader may read a record set as a stream, hashing as it goes and holding one record at a time. What it has read is provisional until the end of the file, where the SHA-256 and `count` must match the manifest; only then may it commit or pass on the records. A set is `bad_bundle` when:
+
+- a line doesn't parse, or isn't in the canonical form above (including a `\r\n` ending or a byte order mark);
+- a line's `$type` or `version` isn't its entry's;
+- a line has no `id`, or one that isn't a key;
+- an `id` repeats, or lines are out of order;
+- there is a blank line, or the file doesn't end with `\n`;
+- the `count` or the SHA-256 doesn't match;
+- its path isn't `records/<kind>.ndjson`, or its entry has no `count`.
+
+A reader's error names the file and the line. A reader may cap the length of a line, and refuse a longer one as `bad_bundle`; the reference tools cap it at 16 MiB.
+
+**Writing.** A writer puts a kind in a record set when it chooses to. References inside a set's records are checked like any others, and a reference to a key in a set resolves to that line's record.
 
 ### Publication fields
 

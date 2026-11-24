@@ -19,6 +19,7 @@ fields:
         record_type?: string -- The record's $type, for a record.
         record_version?: integer(1..) -- The record's version, for a record.
         media_type?: string -- For an attachment.
+        count?: integer(0..) -- For a record set, how many records it holds.
 examples:
   - $type: org.legiblerecords.bundle
     version: 1

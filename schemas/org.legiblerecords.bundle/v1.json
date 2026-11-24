@@ -45,6 +45,11 @@
     "files": {
       "items": {
         "properties": {
+          "count": {
+            "description": "For a record set, how many records it holds.",
+            "minimum": 0,
+            "type": "integer"
+          },
           "media_type": {
             "description": "For an attachment.",
             "type": "string"
