@@ -321,6 +321,10 @@ def key_set_cases():
     new = key_set(key_entry(*K2027), key_entry(*K2026))
     add("pin-conflicts-with-held-set", prev, [pin(K2026[0], public_key=public_key(K2027[0]))], new,
         "needs_approval", signer=K2026[0])
+    # The pin for 2026-11 is an alias: the new set lists those bytes as 2026-11-b. A keys.sig
+    # naming the pin is no endorsement, so the added key waits for approval.
+    new = key_set(key_entry(*K2026, id="2026-11-b"), key_entry(*K2027))
+    add("pin-alias-endorser-in-new-set", None, [pin(K2026[0])], new, "needs_approval", signer=K2026[0])
     # A held key whose alg changed is new, so it needs an endorsement.
     prev = held(key_entry(*K2026))
     new = key_set(key_entry(*K2026, alg="ml-dsa-44"))

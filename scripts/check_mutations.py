@@ -27,7 +27,7 @@ MUTATIONS = {
     "revocation-clears": "a revocation doesn't clear what the key signed",
     "forget-unaccepted": "forget on unaccepted revocation: a set that isn't held clears state",
     "revocation-drops-floors": "a revocation drops the replay floors instead of keeping them",
-    "pin-alias": "pin alias allowed: a pinned key a key set lists under another id is trusted",
+    "pin-alias": "pin alias allowed: a pinned key a key set lists under another id is trusted, and endorses",
 }
 
 

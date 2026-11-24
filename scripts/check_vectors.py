@@ -445,6 +445,10 @@ def decide_key_set(keys_bytes, sig_bytes, previous, anchors, now, validator, fet
             if new_by_id.get(sig["key"], {}).get("revoked_at") or any(
                     k.get("revoked_at") and key_bytes(k["public_key"]) == public for k in new["keys"]):
                 return "bad_endorsement", new
+            if Trust(trust.anchors, trust.held, [new]).alias(publisher, sig["key"], public) \
+                    and "pin-alias" not in MUTATIONS:
+                # An anchor the held set or this new set lists under another id: no endorsement.
+                return ("needs_approval" if added else "accepted"), new
             if alg != "ed25519" or not verifies(public, unb64url(sig["signature"], 64), "keys", keys_bytes):
                 return "bad_endorsement", new
             endorsed = True
