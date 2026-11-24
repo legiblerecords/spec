@@ -92,7 +92,7 @@ A reader refuses an unsigned feed index or an unsigned bundle from a trusted pub
 
 **A held revocation clears what the key signed.** A reader with state records the signer (`publisher` and `key`, or none when unsigned) of each stream's last accepted bundle, and of the last accepted index ([§ Reader state](#reader-state)). When the key set it holds, including one it accepts on this poll, revokes a key, the reader, on that poll and before it checks the index:
 
-- for every stream whose last accepted bundle that key signed, drops the stream's `sha256` and signer, keeps its `published_at`, and reports the stream as `revoked_key`. The stream isn't fetched again on this poll. On the next one it has no `sha256` to match, so it is fetched and checked anew, and the publisher can re-sign and republish what should stay; its kept `published_at` is the floor a replay is refused against (step 12);
+- for every stream whose last accepted bundle that key signed, drops the stream's `sha256` and signer, keeps its `published_at`, and reports the stream as `revoked_key`. The stream isn't fetched again on this poll. On the next one it has no `sha256` to match, so it is fetched and checked anew, and the publisher can re-sign and republish what should stay. The republished bundle needs a `published_at` later than the one readers hold, because readers keep it as a replay floor and refuse an equal or earlier one as `replay` (step 12);
 - drops the index's signer if that key signed the last accepted index, and keeps its `updated_at` as the watermark;
 - drops its ETag if it cleared anything, so the next poll fetches `feed.json` again.
 
