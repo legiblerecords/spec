@@ -150,11 +150,16 @@ def key_entry(name, created_at, **ends):
     return entry
 
 
-def key_set(*entries, publisher="acme.example"):
+HELD_AT = "2026-06-02T00:00:00Z"  # updated_at of a previous key set
+NEW_AT = "2026-11-24T00:00:00Z"  # updated_at of the key set a case is about
+
+
+def key_set(*entries, publisher="acme.example", updated_at=NEW_AT):
     return {
         "$type": "org.legiblerecords.keys",
         "version": 1,
         "publisher": publisher,
+        "updated_at": updated_at,
         "keys": list(entries),
     }
 
@@ -177,27 +182,30 @@ def key_set_cases():
     """Directories under vectors/key-sets/: case.json, keys.json, and keys.sig when signed."""
     cases = []
 
-    def add(name, previous, pins, new, expect, signer=None, context="keys"):
-        cases.append((name, previous, pins, new, expect, signer, context))
+    def add(name, previous, pins, new, expect, signer=None, **how):
+        cases.append((name, previous, pins, new, expect, signer, how))
+
+    def held(*entries, updated_at=HELD_AT):
+        return key_set(*entries, updated_at=updated_at)
 
     # The endorser is active in the previous set; the new set retires it and adds 2026-11.
-    prev = key_set(key_entry(*K2025))
+    prev = held(key_entry(*K2025))
     new = key_set(key_entry(*K2026), key_entry(*K2025, **RETIRED))
     add("endorsed-by-active", prev, [], new, "accepted", signer=K2025[0])
     # The endorser was already retired in the previous set.
-    prev = key_set(key_entry(*K2025, **RETIRED), key_entry(*K2026))
+    prev = held(key_entry(*K2025, **RETIRED), key_entry(*K2026))
     new = key_set(key_entry(*K2027), key_entry(*K2026), key_entry(*K2025, **RETIRED))
     add("endorsed-by-retired", prev, [], new, "bad_endorsement", signer=K2025[0])
     # The endorser was already revoked in the previous set.
-    prev = key_set(key_entry(*K2025, **REVOKED), key_entry(*K2026))
+    prev = held(key_entry(*K2025, **REVOKED), key_entry(*K2026))
     new = key_set(key_entry(*K2027), key_entry(*K2026), key_entry(*K2025, **REVOKED))
     add("endorsed-by-revoked", prev, [], new, "bad_endorsement", signer=K2025[0])
     # A key is added and nothing endorses it.
-    prev = key_set(key_entry(*K2025))
+    prev = held(key_entry(*K2025))
     new = key_set(key_entry(*K2026), key_entry(*K2025))
     add("new-key-unsigned", prev, [], new, "needs_approval")
     # Only an end date is added, so nothing needs approval.
-    prev = key_set(key_entry(*K2025), key_entry(*K2026))
+    prev = held(key_entry(*K2025), key_entry(*K2026))
     new = key_set(key_entry(*K2025, **RETIRED), key_entry(*K2026))
     add("no-new-key-unsigned", prev, [], new, "accepted")
     # No previous set: the endorser is pinned, and the new set doesn't revoke it.
@@ -207,21 +215,57 @@ def key_set_cases():
     new = key_set(key_entry(*K2027), key_entry(*K2026, **RETIRED_2026), key_entry(*K2025, **RETIRED))
     add("stateless-second-rotation", None, [pin(K2025[0])], new, "needs_approval", signer=K2026[0])
     # Signed with the manifest context instead of the keys context.
-    prev = key_set(key_entry(*K2025))
+    prev = held(key_entry(*K2025))
     new = key_set(key_entry(*K2026), key_entry(*K2025, **RETIRED))
     add("endorsement-wrong-context", prev, [], new, "bad_endorsement",
         signer=K2025[0], context="manifest")
 
+    # Rollback: refused before any endorsement is looked at.
+    prev = held(key_entry(*K2025, **REVOKED), key_entry(*K2026))
+    new = key_set(key_entry(*K2025), key_entry(*K2026))
+    add("unsigned-clears-revoked", prev, [], new, "key_set_rollback")
+    prev = held(key_entry(*K2025, **RETIRED), key_entry(*K2026))
+    new = key_set(key_entry(*K2025), key_entry(*K2026))
+    add("unsigned-clears-retired", prev, [], new, "key_set_rollback")
+    # Validly endorsed, but older than the set the reader holds.
+    prev = held(key_entry(*K2025), updated_at="2026-11-24T00:00:00Z")
+    new = key_set(key_entry(*K2026), key_entry(*K2025, **RETIRED), updated_at="2026-06-01T00:00:00Z")
+    add("signed-old-updated-at", prev, [], new, "key_set_rollback", signer=K2025[0])
+    prev = held(key_entry(*K2025), key_entry(*K2026))
+    new = key_set(key_entry(*K2026))
+    add("drops-held-key", prev, [], new, "key_set_rollback")
+
+    # More endorsement cases.
+    prev = held(key_entry(*K2025))
+    new = key_set(key_entry(*K2026), key_entry(*K2025, **REVOKED))
+    add("revokes-own-endorser", prev, [], new, "bad_endorsement", signer=K2025[0])
+    add("stateless-revokes-own-endorser", None, [pin(K2025[0])], new, "needs_approval", signer=K2025[0])
+    new = key_set(key_entry(*K2026), key_entry(*K2025, **RETIRED))
+    add("pinned-endorser-bad-signature", None, [pin(K2025[0])], new, "bad_endorsement",
+        signer=K2025[0], signed_bytes=b"not the key set")
+    # Nothing is new, so an endorsement nobody can check changes nothing.
+    new = key_set(key_entry(*K2025))
+    add("stateless-unpinned-endorser-no-new-key", None, [pin(K2025[0])], new, "accepted",
+        signer=K2026[0])
+    prev = held(key_entry(*K2025))
+    new = key_set(key_entry(*K2026), key_entry(*K2025, **RETIRED))
+    add("endorsement-other-publisher", prev, [], new, "bad_endorsement", signer="other.example/1")
+    add("endorsement-unknown-alg", prev, [], new, "bad_endorsement", signer=K2025[0], alg="rsa")
+    add("endorsement-unparseable", prev, [], new, "bad_endorsement", raw_sig=b"not json\n")
+
     files = {}
-    for name, previous, pins, new, expect, signer, context in cases:
+    for name, previous, pins, new, expect, signer, how in cases:
         stored = stored_json(new)
         base = f"key-sets/{name}/"
         files[base + "case.json"] = stored_json(
             {"name": name, "previous": previous, "pins": pins, "expect": expect})
         files[base + "keys.json"] = stored
-        if signer:
-            files[base + "keys.sig"] = stored_json(
-                signature_file(signer, sign(signer, context, stored)))
+        if "raw_sig" in how:
+            files[base + "keys.sig"] = how["raw_sig"]
+        elif signer:
+            signed = how.get("signed_bytes", stored)
+            files[base + "keys.sig"] = stored_json(signature_file(
+                signer, sign(signer, how.get("context", "keys"), signed), alg=how.get("alg", "ed25519")))
     return files
 
 

@@ -4,6 +4,7 @@ title: keys
 description: A publisher's key set - the keys it signs with, and when each stopped being used.
 fields:
   publisher: domain -- The domain that serves this key set.
+  updated_at: common.datetime -- When the publisher last changed this key set. A reader refuses one older than the set it holds.
   keys:
     description: The publisher's keys, current and past. At least one.
     items:
@@ -20,6 +21,7 @@ examples:
   - $type: org.legiblerecords.keys
     version: 1
     publisher: acme.example
+    updated_at: 2026-11-24T00:00:00Z
     keys:
       - id: 2026-11
         alg: ed25519

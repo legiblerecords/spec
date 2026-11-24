@@ -38,7 +38,7 @@ SIGNATURE_CONTEXTS = {
     "keys": b"legible-records/v1 keys\n",
 }
 SIGNATURE_CODES = {"bad_signature_file", "unknown_alg", "bad_signature"}
-KEY_SET_OUTCOMES = {"accepted", "needs_approval", "bad_endorsement"}
+KEY_SET_OUTCOMES = {"accepted", "needs_approval", "bad_endorsement", "key_set_rollback"}
 B64URL = re.compile(r"^[A-Za-z0-9_-]*$")
 OPTIONS = {"base", "common", "location"}
 
@@ -192,19 +192,29 @@ def verify_endorsement(keys_bytes, sig_bytes, endorser):
 
 
 def key_set_outcome(case, keys_bytes, sig_bytes):
-    """What a reader returns for this key set: accepted, needs_approval or bad_endorsement."""
+    """What a reader returns for this key set: accepted, needs_approval,
+    bad_endorsement or key_set_rollback."""
     new = json.loads(keys_bytes)
     previous = case["previous"]
     publisher = new["publisher"]
-    held = {}  # (publisher, id) -> key entry the reader already trusts
+    new_keys = {k["id"]: k for k in new["keys"]}
     if previous is not None:
-        held = {(previous["publisher"], k["id"]): k for k in previous["keys"]}
+        if previous["publisher"] != publisher:
+            return "bad_endorsement"
+        # Rollback is refused before any endorsement is looked at.
+        if new["updated_at"] < previous["updated_at"]:
+            return "key_set_rollback"
+        for old in previous["keys"]:
+            now = new_keys.get(old["id"])
+            if now is None or any(old.get(end) and not now.get(end) for end in ("retired_at", "revoked_at")):
+                return "key_set_rollback"
+            if old.get("revoked_at") and not now.get("revoked_at"):
+                return "key_set_rollback"
+        held = {k["id"]: k for k in previous["keys"]}
     else:
-        held = {(p["publisher"], p["id"]): {"public_key": p["public_key"]} for p in case["pins"]}
-    added = [
-        k for k in new["keys"]
-        if held.get((publisher, k["id"]), {}).get("public_key") != k["public_key"]
-    ]
+        held = {p["id"]: {"public_key": p["public_key"]} for p in case["pins"]
+                if p["publisher"] == publisher}
+    added = [k for k in new["keys"] if held.get(k["id"], {}).get("public_key") != k["public_key"]]
     if sig_bytes is None:
         return "needs_approval" if added else "accepted"
     try:
@@ -212,21 +222,19 @@ def key_set_outcome(case, keys_bytes, sig_bytes):
         name = (sig["publisher"], sig["key"])
     except (ValueError, KeyError, TypeError):
         return "bad_endorsement"
-    endorser = held.get(name)
-    if previous is not None:
-        # Against the previous accepted set: the key must be in it, neither retired nor revoked.
-        if endorser is None or endorser.get("retired_at") or endorser.get("revoked_at"):
-            return "bad_endorsement"
-    else:
-        # Stateless: only a pinned key counts, and the new set mustn't revoke it. A key
-        # that isn't pinned is no endorsement at all, not a bad one.
-        if endorser is None:
-            return "needs_approval" if added else "accepted"
     if name[0] != publisher:
         return "bad_endorsement"
-    # Either way, a key the new set revokes can't vouch for it.
-    if any(k["id"] == name[1] and k.get("revoked_at") for k in new["keys"]):
-        return "bad_endorsement"
+    endorser = held.get(name[1])
+    revoked_now = bool(new_keys.get(name[1], {}).get("revoked_at"))
+    if previous is not None:
+        # The key must be in the previous set, neither retired nor revoked there, and
+        # the new set mustn't revoke it: a compromised key can't vouch for its own revocation.
+        if endorser is None or endorser.get("retired_at") or endorser.get("revoked_at") or revoked_now:
+            return "bad_endorsement"
+    elif endorser is None or revoked_now:
+        # Stateless: only a pinned key the new set doesn't revoke counts. Any other
+        # signature is no endorsement at all, not a bad one.
+        return "needs_approval" if added else "accepted"
     if not verify_endorsement(keys_bytes, sig_bytes, (name[0], name[1], endorser["public_key"])):
         return "bad_endorsement"
     return "accepted"

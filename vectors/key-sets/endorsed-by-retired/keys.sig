@@ -2,5 +2,5 @@
   "alg": "ed25519",
   "key": "2025-06",
   "publisher": "acme.example",
-  "signature": "q-UlUi0PwT3Ejzn1bTujxyMW3LSEc64gcIVGsYECsNS1HhHlqI9xJxvz2ukg_r0RlDvcGC7ubjM34kHRgZYmCw"
+  "signature": "l24EiWl7BDIh501k5hNrGhvPLTiM3lEm4FNWALoTUyKQS-FCT0SofYsiKNFe_y2j3HV6NQ_4s7QsfJ128LT5AA"
 }
