@@ -1,0 +1,16 @@
+[tools]
+node = "22"
+
+[tasks.install]
+description = "Install dependencies"
+run = "npm ci --ignore-scripts"
+
+[tasks.build]
+description = "Build the site into _site/"
+depends = ["install"]
+run = "npm run build"
+
+[tasks.serve]
+description = "Serve the site locally, rebuilding on change"
+depends = ["install"]
+run = "npm run serve"

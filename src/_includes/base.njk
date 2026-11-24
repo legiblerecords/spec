@@ -1,0 +1,63 @@
+{%- set flat = [] -%}
+{%- for group in nav %}{% for p in group.pages %}{% set flat = (flat.push(p), flat) %}{% endfor %}{% endfor -%}
+{%- set prev = null -%}{%- set next = null -%}
+{%- for p in flat -%}
+  {%- if p.url == page.url -%}
+    {%- if not loop.first %}{% set prev = flat[loop.index0 - 1] %}{% endif -%}
+    {%- if not loop.last %}{% set next = flat[loop.index0 + 1] %}{% endif -%}
+  {%- endif -%}
+{%- endfor -%}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if page.url == "/" %}{{ site.name }}{% else %}{{ title }} · {{ site.name }}{% endif %}</title>
+  {%- if description %}
+  <meta name="description" content="{{ description }}">
+  {%- endif %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Atkinson+Hyperlegible+Mono:ital,wght@0,400;0,700;1,400&display=swap">
+  <link rel="stylesheet" href="/css/site.css">
+</head>
+<body>
+  <a class="skip" href="#content">Skip to content</a>
+  <header class="top">
+    <a class="brand" href="/">{{ site.name }} <small>draft</small></a>
+    <nav aria-label="Primary">
+      <a href="{{ site.spec }}">Spec</a>
+      <a href="{{ site.tools }}">Tools</a>
+      <a href="{{ site.spec }}/blob/main/CONTRIBUTING.md">Contribute</a>
+    </nav>
+  </header>
+
+  <div class="wrap">
+    <nav class="side" aria-label="Documentation">
+      {%- for group in nav %}
+      <h2>{{ group.heading }}</h2>
+      <ul>
+        {%- for p in group.pages %}
+        <li><a href="{{ p.url }}"{% if p.url == page.url %} aria-current="page"{% endif %}>{{ p.title }}</a></li>
+        {%- endfor %}
+      </ul>
+      {%- endfor %}
+    </nav>
+
+    <main id="content">
+      <h1>{{ heading or title }}</h1>
+      {%- if lede %}
+      <p class="lede">{{ lede }}</p>
+      {%- endif %}
+      {{ content | safe }}
+
+      <nav class="pager" aria-label="Previous and next">
+        {% if prev %}<a href="{{ prev.url }}" rel="prev">← {{ prev.title }}</a>{% else %}<span></span>{% endif %}
+        {% if next %}<a href="{{ next.url }}" rel="next">{{ next.title }} →</a>{% endif %}
+      </nav>
+    </main>
+  </div>
+
+  <footer>Legible Records is a draft, maintained by <a href="https://monorail.tech">Monorail</a> for now. <a href="{{ site.spec }}/blob/main/LICENSE">Apache License 2.0</a>.</footer>
+</body>
+</html>
