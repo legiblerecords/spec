@@ -88,3 +88,5 @@ footer {
 
 /* In shell, Prism treats some subcommands as keywords and others not; keep them plain. */
 .language-sh .token.function, .language-sh .token.keyword { font-weight: 400; }
+
+.formats { font-size: 14px; margin-top: 16px; }

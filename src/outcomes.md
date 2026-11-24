@@ -42,4 +42,4 @@ lede: A reader of a bundle, a feed or a key set returns one of these codes when 
 | `needs_approval` | Adds a key with no valid endorsement |
 | `key_set_rollback` | Older than the held set, drops a key, or clears a retired or revoked date |
 
-Spec: [feeds.md § Outcomes]({{ site.spec }}/blob/main/spec/feeds.md#outcomes).
+Spec: [feeds.md § Outcomes](https://github.com/legiblerecords/spec/blob/main/spec/feeds.md#outcomes).

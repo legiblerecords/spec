@@ -27,3 +27,9 @@ The pages summarize the [spec](https://github.com/legiblerecords/spec) and the [
 ## Deploying
 
 Nothing deploys yet. `_site/` is plain static files and can be served from anywhere.
+
+## For language models
+
+Every page is also built as Markdown, at the page's URL with `.md` (`/types/` is also `/types.md`, `/` is `/index.md`), and linked from the page's head. `/llms.txt` lists every page with its one-line `lede`, following [llmstxt.org](https://llmstxt.org), and `/llms-full.txt` is the whole site in one file. All three are built from the same Markdown, so they never drift from the HTML.
+
+For that to work, pages stay plain Markdown: no template tags in them, and every page has a `lede`, its one-sentence summary. Links between pages are written as `/types/`; the Markdown copies point them at `/types.md`. `src/_data/site.js` holds the site's URL, which those files use for absolute links.

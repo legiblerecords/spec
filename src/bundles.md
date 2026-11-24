@@ -52,4 +52,4 @@ legible bundle unpack evidence.zip.age -i reader.age.txt -d evidence
 - Encryption shows the bundle wasn't changed in transit, not who made it. The signature inside says who made it.
 - Never put a passphrase on a command line.
 
-Spec: [records.md § Bundles]({{ site.spec }}/blob/main/spec/records.md#bundles).
+Spec: [records.md § Bundles](https://github.com/legiblerecords/spec/blob/main/spec/records.md#bundles).

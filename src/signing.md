@@ -76,4 +76,4 @@ legible keys sign keys.json -k acme-2026-11.key.json -o keys.sig
 
 > Exit 0 from `verify` doesn't mean a signature was checked. Only `signature: verified` means that, and it needs `--pin` or `--key-set`.
 
-Spec: [records.md § Signed bundles]({{ site.spec }}/blob/main/spec/records.md#signed-bundles).
+Spec: [records.md § Signed bundles](https://github.com/legiblerecords/spec/blob/main/spec/records.md#signed-bundles).

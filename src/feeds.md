@@ -87,4 +87,4 @@ q3-report: withdrawn
 
 `feed check` keeps nothing, so it can't detect a replay. Use it to see whether a feed and its signatures are good. `feed pull` keeps reader state, so a bundle older than the last one accepted is refused as `replay`.
 
-Spec: [feeds.md]({{ site.spec }}/blob/main/spec/feeds.md).
+Spec: [feeds.md](https://github.com/legiblerecords/spec/blob/main/spec/feeds.md).

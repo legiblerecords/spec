@@ -1,0 +1,14 @@
+---
+pagination:
+  data: collections.docs
+  size: 1
+  alias: doc
+permalink: "{{ doc.url | markdownUrl }}"
+eleventyExcludeFromCollections: true
+layout: false
+---
+# {{ (doc.data.heading or doc.data.title) | safe }}
+
+> {{ doc.data.lede | safe }}
+
+{{ doc.rawInput | asMarkdown | safe }}

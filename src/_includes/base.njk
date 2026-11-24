@@ -20,6 +20,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Atkinson+Hyperlegible+Mono:ital,wght@0,400;0,700;1,400&display=swap">
   <link rel="stylesheet" href="/css/site.css">
+  <link rel="alternate" type="text/markdown" href="{{ page.url | markdownUrl }}" title="This page as Markdown">
 </head>
 <body>
   <a class="skip" href="#content">Skip to content</a>
@@ -55,6 +56,7 @@
         {% if prev %}<a href="{{ prev.url }}" rel="prev">← {{ prev.title }}</a>{% else %}<span></span>{% endif %}
         {% if next %}<a href="{{ next.url }}" rel="next">{{ next.title }} →</a>{% endif %}
       </nav>
+      <p class="formats">This page as <a href="{{ page.url | markdownUrl }}">Markdown</a>. For language models: <a href="/llms.txt">llms.txt</a>, or the whole site in <a href="/llms-full.txt">llms-full.txt</a>.</p>
     </main>
   </div>
 

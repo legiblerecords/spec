@@ -52,4 +52,4 @@ Write only the fields the type defines. Write keys in sorted order, numbers in t
 
 ## Read the spec
 
-This site summarizes the [specification]({{ site.spec }}). Where they differ, the spec is right.
+This site summarizes the [specification](https://github.com/legiblerecords/spec). Where they differ, the spec is right.

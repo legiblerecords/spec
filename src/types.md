@@ -36,4 +36,4 @@ A reference to an attachment is an object:
 
 A schema can say what kind of data a field holds, with a label from a data taxonomy: `@user.contact.email` in the short form, `x-data` in JSON Schema. Labels tell a reader, a publisher or an agent how to handle a field before reading its value. Types say which taxonomy they use.
 
-Spec: [records.md]({{ site.spec }}/blob/main/spec/records.md).
+Spec: [records.md](https://github.com/legiblerecords/spec/blob/main/spec/records.md).
