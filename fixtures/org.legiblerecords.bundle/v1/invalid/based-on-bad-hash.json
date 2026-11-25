@@ -1,0 +1,8 @@
+{
+  "$type": "org.legiblerecords.bundle",
+  "based_on": {
+    "manifest_sha256": "not-a-hash"
+  },
+  "files": [],
+  "version": 1
+}

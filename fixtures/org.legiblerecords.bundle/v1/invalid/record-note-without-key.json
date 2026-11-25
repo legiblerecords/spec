@@ -1,0 +1,11 @@
+{
+  "$type": "org.legiblerecords.bundle",
+  "files": [],
+  "record_notes": [
+    {
+      "note": "Retired in October.",
+      "type": "example.acme.systems.system"
+    }
+  ],
+  "version": 1
+}

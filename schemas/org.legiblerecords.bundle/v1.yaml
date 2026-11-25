@@ -11,6 +11,23 @@ fields:
     fields:
       id: common.feedId -- The feed's id, <publisher>/<slug>.
       stream: slug -- The stream within the feed.
+  prepared_by?: personMatch -- Who prepared the bundle, for a reader to ask about it. What the bundle says, not proof of who sent it.
+  note?: string -- What the bundle is and why it was made, in Markdown.
+  record_notes?:
+    description: Notes on single records, such as why one changed or was removed.
+    items:
+      fields:
+        type: /^[a-z0-9-]+(\.[a-z0-9-]+)+$/ -- The record's $type.
+        key: slug -- The record's id. The record need not be in the bundle, so that a note can explain a removal.
+        note: string -- In Markdown.
+  complete?:
+    description: The types this bundle holds every record of, whatever their version. A record of one of these types that a reader holds and the bundle lacks was removed at the source. A type not listed may be partial.
+    items: /^[a-z0-9-]+(\.[a-z0-9-]+)+$/
+  based_on?:
+    description: The bundle the publisher started from, such as one the reader sent it.
+    fields:
+      manifest_sha256: sha256 -- Of that bundle's manifest.json, as stored.
+      published_at?: datetime -- That bundle's published_at, for people to read.
   files:
     items:
       fields:
