@@ -1,3 +1,4 @@
+import { IdAttributePlugin } from "@11ty/eleventy";
 import syntaxHighlight from "@11ty/eleventy-plugin-syntaxhighlight";
 import nav from "./src/_data/nav.js";
 
@@ -7,6 +8,8 @@ const markdownUrl = (url) => (url === "/" ? "/index.md" : url.replace(/\/$/, "")
 export default function (eleventyConfig) {
   // Highlighting happens at build time with Prism; the site ships no JavaScript.
   eleventyConfig.addPlugin(syntaxHighlight);
+  // Headings get ids from their text, such as #content-lines, so pages can link to sections.
+  eleventyConfig.addPlugin(IdAttributePlugin);
   eleventyConfig.addPassthroughCopy({ "src/css": "css" });
 
   eleventyConfig.addFilter("markdownUrl", markdownUrl);
