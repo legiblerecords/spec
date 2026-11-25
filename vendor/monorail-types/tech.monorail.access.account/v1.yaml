@@ -1,0 +1,37 @@
+type: tech.monorail.access.account
+version: 1
+title: account
+description: An account in one system, such as GitHub, Google Workspace or AWS, and the access it has there. It has person or person_match, or both, unless its kind is service or shared; a reader shows one without as unresolved. Large systems travel as a record set.
+fields:
+  id: slug -- <system>-<the system's account id>, such as github-4183920.
+  system: /^[a-z0-9][a-z0-9.:-]*$/ -- The system, in lowercase, such as github, google, okta, slack or aws.
+  username: string @user.account.username
+  status: known(active, suspended, deleted)
+  kind?: known(person, service, shared)
+  person?: ref(person) @user.unique_id -- Whose account it is, when they travel in the same bundle.
+  person_match?: personMatch @user.name @user.contact.email.work @user.unique_id -- Whose account it is, for a reader to match. Needs emails or identifiers.
+  mfa?: known(on, off, unknown)
+  admin?: boolean -- An administrator of the whole system.
+  access?:
+    description: What the account can reach now, not what it should.
+    items:
+      fields:
+        resource: string -- What, in the system's own terms, such as repo:acme/api, project:billing or org.
+        level: string -- The system's own level, such as read, write, admin or owner.
+        via?: string -- How it is granted, such as team:platform, when not directly.
+  last_active?: datetime
+  source_fields?: object -- The source's own fields that no field here covers, under the source's names. Readers keep it and don't interpret it. Never a personal value that a field here would label.
+  produced_by?: produced_by
+  source?: source
+examples:
+  - $type: tech.monorail.access.account
+    version: 1
+    id: github-4183920
+    system: github
+    username: ana-lima-acme
+    status: active
+    kind: person
+    person_match: { identifiers: [{ system: github, id: "4183920" }], emails: [ana@acme.example] }
+    mfa: on
+    access:
+      - { resource: repo:acme/api, level: write, via: team:platform }

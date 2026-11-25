@@ -11,4 +11,4 @@ layout: false
 
 > {{ doc.data.lede | safe }}
 
-{{ doc.rawInput | asMarkdown | safe }}
+{{ (doc.data.generatedMarkdown or doc.rawInput) | asMarkdown | safe }}

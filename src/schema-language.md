@@ -59,4 +59,4 @@ The short form is written in a small subset of YAML, so every parser reads the s
 - `no`, `yes`, `~`, `0x1F` and `inf` are strings, not booleans or numbers.
 - At most 64 KiB and 32 levels deep.
 
-Spec: [schema-language.md](https://github.com/legiblerecords/spec/blob/main/spec/schema-language.md), [restricted-yaml.md](https://github.com/legiblerecords/spec/blob/main/spec/restricted-yaml.md).
+To write a parser, expander or generator, follow the spec and pass its test vectors: [Schema language](/spec/schema-language/) and [Restricted YAML](/spec/restricted-yaml/).

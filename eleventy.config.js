@@ -17,16 +17,16 @@ export default function (eleventyConfig) {
   // A page's Markdown as written, with links to other pages pointing at their Markdown copies,
   // so a reader that follows them stays in Markdown.
   eleventyConfig.addFilter("asMarkdown", (raw) =>
-    raw.trim().replace(/\]\((\/[a-z0-9-]*\/?)(#[^)]*)?\)/g, (_, url, hash = "") => `](${markdownUrl(url)}${hash})`),
+    raw.trim().replace(/\]\((\/(?:[a-z0-9-]+\/)*)(#[^)]*)?\)/g, (_, url, hash = "") => `](${markdownUrl(url)}${hash})`),
   );
 
   // The documentation pages, in the sidebar's order.
   eleventyConfig.addCollection("docs", (api) => {
-    const byUrl = new Map(api.getFilteredByGlob("src/*.md").map((item) => [item.url, item]));
+    const byUrl = new Map(api.getAll().map((item) => [item.url, item]));
     return nav.flatMap((group) =>
       group.pages.map((p) => {
         const item = byUrl.get(p.url);
-        if (!item) throw new Error(`nav.js lists ${p.url}, but no page has that URL`);
+        if (!item) throw new Error(`nav.js lists ${p.url}, but no page has that URL; pages: ${[...byUrl.keys()].join(" ")}`);
         return item;
       }),
     );

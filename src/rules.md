@@ -55,4 +55,4 @@ A new major version should ship with a lens from the previous one, when the chan
 
 Every published type ships with fixtures: records a conforming reader must accept, and records it must reject, each named for the reason. An implementation may say it supports a type only if it passes that type's fixtures.
 
-Spec: [rules.md](https://github.com/legiblerecords/spec/blob/main/spec/rules.md).
+The rules as the spec states them: [Rules for published types](/spec/rules/).

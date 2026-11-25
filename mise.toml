@@ -10,6 +10,11 @@ description = "Build the site into _site/"
 depends = ["install"]
 run = "npm run build"
 
+[tasks.check]
+description = "Build the site and check that every link inside it resolves"
+depends = ["install"]
+run = "npm run check"
+
 [tasks.serve]
 description = "Serve the site locally, rebuilding on change"
 depends = ["install"]
