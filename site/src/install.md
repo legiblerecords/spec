@@ -61,3 +61,17 @@ In a browser, call `await init()` once before using it.
 | 0 | Everything passed |
 | 1 | The input has problems |
 | 2 | The tool couldn't run |
+
+## For agents
+
+The [legible-records skill](https://github.com/legiblerecords/tools/blob/main/skills/legible-records/SKILL.md) teaches an agent to turn exports into records and to pack, check and hand over bundles with `legible`: which commands to run and in what order, how to read what `verify` prints, the shared shapes, when to point at a person and when to leave a match unresolved, and what to report. It is kept in the tools repository, beside the tool it describes.
+
+For Claude Code, install it as a personal skill:
+
+```sh
+mkdir -p ~/.claude/skills/legible-records
+curl -fsSL https://raw.githubusercontent.com/legiblerecords/tools/main/skills/legible-records/SKILL.md \
+  -o ~/.claude/skills/legible-records/SKILL.md
+```
+
+Or put it in a project's `.claude/skills/legible-records/` to share it with everyone working there. Other agents can read [the same file](https://raw.githubusercontent.com/legiblerecords/tools/main/skills/legible-records/SKILL.md) as instructions. Agents that implement Legible Records, rather than use it, follow the [specification](/spec/records/) instead.
