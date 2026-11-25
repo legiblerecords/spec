@@ -1024,9 +1024,58 @@ def feed_cases():
     return files
 
 
+PROVENANCE = ("produced_by", "source")
+
+
+def content_line(record):
+    """A record's content line (records.md § Content lines): its canonical line
+    without top-level produced_by and source, and without the final newline."""
+    return canonical_json({k: v for k, v in record.items() if k not in PROVENANCE})
+
+
+def content_lines():
+    plain = {
+        "$type": "tech.monorail.policy.document", "version": 1, "id": "access-control",
+        "title": "Access control", "revision": 3, "effective_date": "2026-11-01",
+        "status": "published", "body": "# Access control\n\nEveryone uses MFA.",
+    }
+    provenance = {"produced_by": {"app": "outpost", "build": "2026.11.3"},
+                  "source": {"system": "outpost", "as_of": "2026-11-20T09:00:00Z"}}
+    cases = [
+        ("plain", plain),
+        ("provenance-removed", {**plain, **provenance}),
+        ("nested-source-kept", {**plain, "details": {"source": "handbook", "produced_by": "people team"}}),
+        ("unicode", {**plain, "title": "Zugriffskontrolle für Büros ✓", "body": "Ünïcödé — \u00e9 and 日本"}),
+        ("crlf-in-body", {**plain, "body": "line one\r\nline two\ttabbed \"quoted\" \\ back"}),
+        ("numbers", {**plain, "score": 0.00001, "big": 1e21, "ratio": 7.5, "whole": 2.0, "neg": -0.0}),
+        ("changed-field", {**plain, "revision": 4}),
+    ]
+    out = []
+    for name, record in cases:
+        line = content_line(record)
+        out.append({"name": name, "record": record, "content_line": line,
+                    "sha256": hashlib.sha256(line.encode()).hexdigest()})
+    # Record texts that have no canonical form, so no content line: a tool refuses them.
+    refused = [
+        ("duplicate-key", '{"$type":"tech.monorail.policy.document","id":"access-control","version":1,"title":"A","title":"B"}'),
+        ("integer-beyond-double", '{"$type":"tech.monorail.policy.document","id":"access-control","version":1,"count":9007199254740993}'),
+        ("long-integer", '{"$type":"tech.monorail.policy.document","id":"access-control","version":1,"count":123456789012345678901234567890}'),
+        ("lone-surrogate", '{"$type":"tech.monorail.policy.document","id":"access-control","version":1,"title":"\\ud800"}'),
+        ("not-an-object", '["access-control"]'),
+    ]
+    return {
+        "description": "Content lines and their SHA-256 (spec/records.md § Content lines). "
+                       "plain and provenance-removed hash alike; changed-field differs. "
+                       "Each refused record_text has no canonical form, and a tool refuses it.",
+        "cases": out,
+        "refused": [{"name": n, "record_text": t} for n, t in refused],
+    }
+
+
 # File name under vectors/ -> function returning its JSON value.
 VECTOR_FILES = {
     "signatures.json": signatures,
+    "content-lines.json": content_lines,
 }
 
 # Functions returning {path under vectors/: bytes} for vectors kept as directories.

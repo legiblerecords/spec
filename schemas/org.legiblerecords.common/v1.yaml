@@ -37,3 +37,26 @@ defs:
       sha256: sha256
       name: string -- The file's name for people, such as access-review-q3.pdf.
       media_type: string -- Such as application/pdf.
+  identifier:
+    description: Something's id in one system, such as a repository in GitHub or a person in Okta. Matched exactly, both halves together.
+    fields:
+      system: /^[a-z0-9][a-z0-9.:-]*$/ -- Where the id comes from, in lowercase - github, gitlab, okta, entra, google, slack, serial, outpost:acme.example. Each system names one kind of id (records.md § Pointing at records elsewhere).
+      id:
+        type: string
+        description: The id in that system, as that system writes it - acme/api, 00u1ab2cd3.
+        json:
+          minLength: 1
+  externalRef:
+    description: A record that travels elsewhere - in another stream, or from another publisher. Never resolved inside a bundle.
+    fields:
+      type: /^[a-z0-9-]+(\.[a-z0-9-]+)+$/ -- The record's $type, a type identifier such as tech.monorail.policy.document, not its short name.
+      key: slug -- The record's id.
+      publisher?: domain -- Whose record it is. Left out only when it is this record's own publisher's and this record travels where that publisher is known - a signed bundle or a feed.
+      revision?: integer(1..) -- The record's revision, for types that number their revisions (such as a policy).
+      sha256?: sha256 -- Of the record's content line, pinning exactly what it says.
+  personMatch:
+    description: What a publisher knows about the person a record is about, for a reader to match against the people it holds. Needs emails or identifiers, or both.
+    fields:
+      emails?: email[] -- Compared case-insensitively.
+      identifiers?: identifier[] -- The person's ids in other systems, matched before emails.
+      name?: string -- For people to read when resolving a match; never matched on.

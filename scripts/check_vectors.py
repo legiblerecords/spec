@@ -607,6 +607,69 @@ def canonical_line(record):
     return canonical(record).encode("utf-8") + b"\n"
 
 
+def without_provenance(value, top=True):
+    """A record without top-level produced_by and source (records.md § Content lines)."""
+    if type(value) is dict:
+        nested = "content-nested-provenance" in MUTATIONS
+        return {k: without_provenance(v, False) for k, v in value.items()
+                if not ((top or nested) and k in ("produced_by", "source"))}
+    if type(value) is list:
+        return [without_provenance(v, False) for v in value]
+    return value
+
+
+def content_refusal(text):
+    """Why a record's text has no content line (records.md § Content lines), or None."""
+    def no_dupes(pairs):
+        keys = [k for k, _ in pairs]
+        if len(keys) != len(set(keys)):
+            raise ValueError("a key appears twice")
+        return dict(pairs)
+
+    def exact_int(token):
+        if float(token) != int(token):
+            raise ValueError(f"{token} isn't exact as a double")
+        return int(token)
+
+    try:
+        record = json.loads(text, object_pairs_hook=no_dupes, parse_int=exact_int,
+                            parse_constant=refuse_constant)
+    except ValueError as e:
+        return str(e)
+    if type(record) is not dict:
+        return "not an object"
+    try:
+        canonical(record).encode("utf-8")
+    except UnicodeEncodeError:
+        return "a lone surrogate"
+    return None
+
+
+def check_content_lines(path, problems):
+    data = json.loads(path.read_text(encoding="utf-8"))
+    hashes = {}
+    for i, case in enumerate(data["cases"]):
+        where = f"{path.name} case {i} ({case.get('name')})"
+        line = canonical(without_provenance(case["record"]))
+        if line != case["content_line"]:
+            problems.append(f"{where}: content line differs from the re-check")
+        digest = hashlib.sha256(line.encode("utf-8")).hexdigest()
+        if digest != case["sha256"]:
+            problems.append(f"{where}: sha256 differs from the re-check")
+        hashes[case["name"]] = digest
+    for case in data.get("refused", []):
+        if content_refusal(case["record_text"]) is None:
+            problems.append(f"{path.name} refused {case['name']}: the re-check accepts it")
+    if len(data.get("refused", [])) < 5:
+        problems.append(f"{path.name}: expected five refused cases")
+    # The cases that must agree, and the one that must not.
+    if hashes.get("plain") != hashes.get("provenance-removed"):
+        problems.append(f"{path.name}: plain and provenance-removed must hash alike")
+    if hashes.get("plain") == hashes.get("changed-field"):
+        problems.append(f"{path.name}: changed-field must hash differently from plain")
+    return len(data["cases"])
+
+
 def refuse_constant(name):
     raise ValueError(f"{name} isn't JSON")
 
@@ -1000,6 +1063,7 @@ def main():
         count += check_schema_language(path, problems)
     count += check_restricted_yaml(ROOT / "vectors" / "restricted-yaml.json", problems)
     count += check_signatures(ROOT / "vectors" / "signatures.json", problems, codes)
+    count += check_content_lines(ROOT / "vectors" / "content-lines.json", problems)
     count += check_key_sets(ROOT / "vectors" / "key-sets", problems, codes)
     count += check_bundles(ROOT / "vectors" / "bundles", problems, codes)
     count += check_feeds(ROOT / "vectors" / "feeds", problems, codes)
