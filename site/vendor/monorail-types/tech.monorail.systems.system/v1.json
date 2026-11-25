@@ -1,0 +1,290 @@
+{
+  "$id": "https://monorail.tech/schemas/tech.monorail.systems.system/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A system an organization runs or uses, such as a service, a data store, a cloud account or a SaaS tool - what it is for, how people sign in to it, and what data it holds. One record per system; where the data differs, as between a production and a staging database, one each. Large inventories travel as a record set.",
+  "examples": [
+    {
+      "$type": "tech.monorail.systems.system",
+      "auth": {
+        "idp": "okta",
+        "methods": [
+          "sso",
+          "certificate"
+        ],
+        "mfa": "required"
+      },
+      "classification": {
+        "label": "Confidential",
+        "level": "confidential"
+      },
+      "customer_content": [
+        "user.name",
+        "user.contact.email",
+        "user.content.messages"
+      ],
+      "data_categories": [
+        "company.security.monitoring"
+      ],
+      "data_subjects": [
+        "customer_user"
+      ],
+      "exposure": "internal",
+      "id": "tickets-db-prod",
+      "kind": "data-store",
+      "name": "Tickets database (production)",
+      "owner": "Platform lead",
+      "production": true,
+      "purpose": "Stores the support tickets customers' users write in the product.",
+      "status": "active",
+      "version": 1
+    }
+  ],
+  "properties": {
+    "$type": {
+      "const": "tech.monorail.systems.system"
+    },
+    "auth": {
+      "description": "How people and other systems sign in to it.",
+      "properties": {
+        "idp": {
+          "description": "The identity provider behind sso, in lowercase, such as okta, entra or google.",
+          "pattern": "^[a-z0-9][a-z0-9.:-]*$",
+          "type": "string",
+          "x-data": [
+            "company.security.architecture"
+          ]
+        },
+        "methods": {
+          "description": "Every way in that is allowed, not only the usual one.",
+          "items": {
+            "examples": [
+              "sso",
+              "password",
+              "passkey",
+              "api-key",
+              "certificate",
+              "ssh-key",
+              "none"
+            ],
+            "type": "string"
+          },
+          "type": "array",
+          "x-data": [
+            "company.security.architecture"
+          ]
+        },
+        "mfa": {
+          "examples": [
+            "required",
+            "optional",
+            "off",
+            "unknown"
+          ],
+          "type": "string",
+          "x-data": [
+            "company.security.architecture"
+          ]
+        },
+        "provisioning": {
+          "description": "How accounts are created and removed.",
+          "examples": [
+            "scim",
+            "sso-jit",
+            "manual"
+          ],
+          "type": "string",
+          "x-data": [
+            "company.security.architecture"
+          ]
+        },
+        "sso_enforced": {
+          "description": "There is no way in but sso.",
+          "type": "boolean",
+          "x-data": [
+            "company.security.architecture"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "availability": {
+      "description": "critical when an outage stops the product or revenue.",
+      "examples": [
+        "critical",
+        "standard"
+      ],
+      "type": "string"
+    },
+    "classification": {
+      "description": "The organization's own classification of the system, as stated. A reader shows it as a claim, beside any level it works out from the categories.",
+      "properties": {
+        "label": {
+          "description": "In the organization's words, such as Confidential or Tier 1.",
+          "type": "string"
+        },
+        "level": {
+          "description": "Which of these the label corresponds to, when the publisher knows.",
+          "examples": [
+            "public",
+            "internal",
+            "confidential",
+            "restricted"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "label"
+      ],
+      "type": "object"
+    },
+    "customer_content": {
+      "description": "Categories of data it holds on behalf of customers, such as what they upload or enter into the product, as category keys from the same taxonomy. Data about customers that the organization collects for itself, such as CRM contacts, goes in data_categories.",
+      "items": {
+        "pattern": "^[a-z0-9_]+(\\.[a-z0-9_]+)*$",
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "customer_content_unknown": {
+      "description": "It holds customer content whose categories can't be known.",
+      "type": "boolean"
+    },
+    "data_categories": {
+      "description": "Every category of the organization's own data it stores, processes or transmits, including backups and copies, as category keys from Monorail's data taxonomy (tech.monorail.data, version 1, at https://monorail.tech/taxonomies/tech.monorail.data/v1.json), such as user.contact.email. The most specific key that is true. What it holds on behalf of customers goes in customer_content.",
+      "items": {
+        "pattern": "^[a-z0-9_]+(\\.[a-z0-9_]+)*$",
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "data_subjects": {
+      "description": "Whose data it holds, as subject keys from the same taxonomy, such as employee or customer_user.",
+      "items": {
+        "pattern": "^[a-z0-9_]+$",
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "description": {
+      "type": "string"
+    },
+    "exposure": {
+      "description": "Who can reach it at all. auth says how they then sign in.",
+      "examples": [
+        "internet-facing",
+        "authenticated",
+        "internal",
+        "offline"
+      ],
+      "type": "string",
+      "x-data": [
+        "company.security.architecture"
+      ]
+    },
+    "id": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
+      "description": "The publisher's key, such as billing-db-prod, for references like system:billing-db-prod."
+    },
+    "identifiers": {
+      "description": "The system's ids elsewhere, such as system okta and its app id there, or system aws and an account id.",
+      "items": {
+        "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/identifier"
+      },
+      "type": "array"
+    },
+    "kind": {
+      "examples": [
+        "service",
+        "data-store",
+        "cloud-account",
+        "saas",
+        "identity",
+        "network",
+        "endpoint-tool",
+        "other"
+      ],
+      "type": "string"
+    },
+    "level": {
+      "description": "The highest level of the data it holds, as the publisher computed it from the categories and a data policy. Never typed by hand; a stated level goes in classification.",
+      "examples": [
+        "public",
+        "internal",
+        "confidential",
+        "restricted"
+      ],
+      "type": "string"
+    },
+    "name": {
+      "type": "string"
+    },
+    "owner": {
+      "description": "The one accountable person or role, by name.",
+      "type": "string",
+      "x-data": [
+        "user.name"
+      ]
+    },
+    "owner_match": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/personMatch",
+      "description": "The owning person, for a reader to match. Needs emails or identifiers.",
+      "x-data": [
+        "user.name",
+        "user.contact.email.work",
+        "user.unique_id"
+      ]
+    },
+    "owner_role": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/refString",
+      "description": "The owning role, when it travels in the same bundle.",
+      "ref": "role"
+    },
+    "owner_role_ref": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/externalRef",
+      "description": "The owning role, when it travels elsewhere."
+    },
+    "produced_by": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/produced_by"
+    },
+    "production": {
+      "description": "Whether it is, or runs in, production.",
+      "type": "boolean"
+    },
+    "purpose": {
+      "description": "What the organization uses it for, in a sentence.",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/source"
+    },
+    "source_fields": {
+      "description": "The source's own fields that no field here covers, under the source's names. Readers keep it and don't interpret it. Never a personal value that a field here would label.",
+      "type": "object"
+    },
+    "status": {
+      "examples": [
+        "active",
+        "retired"
+      ],
+      "type": "string"
+    },
+    "vendor": {
+      "description": "Who provides it, by name. Absent for what the organization builds.",
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "$type",
+    "version",
+    "id",
+    "kind",
+    "name",
+    "status"
+  ],
+  "title": "system",
+  "type": "object"
+}

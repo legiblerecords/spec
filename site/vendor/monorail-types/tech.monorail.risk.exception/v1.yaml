@@ -5,7 +5,7 @@ description: A time-limited, approved departure from a requirement - a policy, a
 fields:
   id: slug -- Such as ex-2026-014, for references like exception:ex-2026-014.
   kind: known(extension, acceptance) -- extension is still to be fixed, by expires; acceptance is not being fixed, and is reviewed by expires.
-  status: known(requested, approved, rejected, withdrawn) -- Whether it is in force also depends on expires.
+  status: known(requested, approved, rejected, withdrawn, closed) -- closed is approved, then ended before expires because it was no longer needed. Whether it is in force also depends on expires.
   title: string
   requirement?: ref(policy, statement, control, vulnerability-sla) -- What it departs from, when that travels in the same bundle.
   requirement_ref?: externalRef -- What it departs from, when that travels elsewhere.
@@ -18,14 +18,18 @@ fields:
   residual_risk?: known(critical, high, medium, low)
   original_due?: date -- For an extension, the deadline it moves; before expires.
   expires: date -- The last day it covers. For an extension, the new deadline.
+  closed_at?: date -- When it stopped covering its subjects. Only when status is closed, and then required.
+  closed_reason?: known(fixed, dismissed, superseded) -- Why it closed. superseded is when another exception, whose replaces names this one, took over.
   requested_by?: string @user.name
   requested_at?: datetime
+  requested_on?: date -- The day it was requested, when the source records only the day. Not with requested_at.
   approvals?:
     items:
       fields:
         name: string @user.name
         role: string
-        at: datetime
+        at?: datetime -- When it was approved. Exactly one of at and on.
+        on?: date -- The day it was approved, when the source records only the day.
   replaces?: ref(exception) -- The exception this one renews or amends.
   body?: string -- Notes, in Markdown.
   source_fields?: object -- The source's own fields that no field here covers, under the source's names. Readers keep it and don't interpret it. Never a personal value that a field here would label.

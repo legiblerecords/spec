@@ -20,7 +20,8 @@ fields:
       fields:
         name: string @user.name
         role: string
-        at: datetime
+        at?: datetime -- When it was approved. Exactly one of at and on.
+        on?: date -- The day it was approved, when the source records only the day.
   review_by?: date
   replaces?: ref(risk-appetite) -- The appetite this one supersedes.
   body?: string -- Notes, in Markdown.
