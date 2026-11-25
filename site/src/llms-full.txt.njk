@@ -1,0 +1,21 @@
+---
+permalink: /llms-full.txt
+eleventyExcludeFromCollections: true
+layout: false
+---
+# {{ site.name | safe }}
+
+> {{ site.summary | safe }}
+
+This is every page of {{ site.url }} as Markdown, in reading order. The guides show how to use Legible Records, and the Specification pages say exactly what it is. To implement any part of it, follow the Specification and pass its test vectors; where a guide and the spec differ, the spec is right.
+{% for doc in collections.docs %}
+---
+
+# {{ (doc.data.heading or doc.data.title) | safe }}
+
+Source: {{ site.url }}{{ doc.url }}
+
+> {{ doc.data.lede | safe }}
+
+{{ (doc.data.generatedMarkdown or doc.rawInput) | asMarkdown | safe }}
+{% endfor %}

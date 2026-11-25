@@ -1,0 +1,147 @@
+{
+  "$id": "https://monorail.tech/schemas/tech.monorail.it.device/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A computer or phone as a device manager (MDM) knows it - its platform, who uses it, and the state of its security checks. Large fleets travel as a record set.",
+  "examples": [
+    {
+      "$type": "tech.monorail.it.device",
+      "checks": {
+        "disk_encryption": "on",
+        "firewall": "on",
+        "os_supported": true,
+        "screen_lock": "on"
+      },
+      "id": "c02xk1abcd",
+      "last_seen": "2026-11-23T18:20:00Z",
+      "managed_by": "iru",
+      "name": "Ana's MacBook Pro",
+      "os_version": "15.1.1",
+      "person_match": {
+        "emails": [
+          "ana@acme.example"
+        ]
+      },
+      "platform": "macos",
+      "serial": "C02XK1ABCD",
+      "version": 1
+    }
+  ],
+  "properties": {
+    "$type": {
+      "const": "tech.monorail.it.device"
+    },
+    "checks": {
+      "description": "The device manager's security checks, as last reported.",
+      "properties": {
+        "disk_encryption": {
+          "examples": [
+            "on",
+            "off",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "firewall": {
+          "examples": [
+            "on",
+            "off",
+            "unknown"
+          ],
+          "type": "string"
+        },
+        "os_supported": {
+          "description": "Whether its OS version still gets security updates.",
+          "type": "boolean"
+        },
+        "screen_lock": {
+          "examples": [
+            "on",
+            "off",
+            "unknown"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "id": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
+      "description": "The publisher's key, such as the serial lowercased."
+    },
+    "last_seen": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime",
+      "description": "When the device manager last heard from it."
+    },
+    "managed_by": {
+      "description": "The device manager, such as iru, intune, jamf or kandji.",
+      "type": "string"
+    },
+    "name": {
+      "description": "The device's name, often its user's.",
+      "type": "string",
+      "x-data": [
+        "user.name"
+      ]
+    },
+    "os_version": {
+      "type": "string"
+    },
+    "person": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/refString",
+      "description": "Who uses it, when they travel in the same bundle.",
+      "ref": "person",
+      "x-data": [
+        "user.unique_id"
+      ]
+    },
+    "person_match": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/personMatch",
+      "description": "Who uses it, for a reader to match. Needs emails or identifiers. A device with no user has neither person nor person_match.",
+      "x-data": [
+        "user.name",
+        "user.contact.email.work",
+        "user.unique_id"
+      ]
+    },
+    "platform": {
+      "examples": [
+        "macos",
+        "windows",
+        "linux",
+        "ios",
+        "android",
+        "chromeos",
+        "other"
+      ],
+      "type": "string"
+    },
+    "produced_by": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/produced_by"
+    },
+    "serial": {
+      "type": "string",
+      "x-data": [
+        "user.device.device_id"
+      ]
+    },
+    "source": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/source"
+    },
+    "source_fields": {
+      "description": "The source's own fields that no field here covers, under the source's names, such as Iru's blueprint. Readers keep it and don't interpret it. Never a personal value that a field here would label.",
+      "type": "object"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "$type",
+    "version",
+    "id",
+    "name",
+    "platform"
+  ],
+  "title": "device",
+  "type": "object"
+}
