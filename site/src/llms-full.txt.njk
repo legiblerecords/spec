@@ -7,7 +7,7 @@ layout: false
 
 > {{ site.summary | safe }}
 
-This is every page of {{ site.url }} as Markdown, in reading order. The guides show how to use Legible Records, and the Specification pages say exactly what it is. To implement any part of it, follow the Specification and pass its test vectors; where a guide and the spec differ, the spec is right.
+This is every page of {{ site.url }} as Markdown, in reading order. The guides show how to use Legible Records, and the Specification pages say exactly what it is. To implement any part of it, follow the Specification and pass its test vectors; where a guide and the spec differ, the spec is right. Agents that write records should also read the legible-records skill: {{ site.skillRaw }}
 {% for doc in collections.docs %}
 ---
 

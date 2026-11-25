@@ -7,12 +7,16 @@ layout: false
 
 > {{ site.summary | safe }}
 
-Every page below is also available as Markdown at the linked URL. The whole site is in one file at {{ site.url }}/llms-full.txt. The guides show how to use Legible Records. To implement any part of it, follow the Specification pages and pass the spec's test vectors; where a guide and the spec differ, the spec is right.
+Every page below is also available as Markdown at the linked URL, and the whole site is in one file: [llms-full.txt]({{ site.url }}/llms-full.txt). The guides show how to use Legible Records. To implement any part of it, follow the Specification pages and pass the spec's test vectors; where a guide and the spec differ, the spec is right.
 {% for group in nav %}
 ## {{ group.heading }}
 {% for p in group.pages %}{% for doc in collections.docs %}{% if doc.url == p.url %}
 - [{{ p.title | safe }}]({{ site.url }}{{ p.url | markdownUrl }}): {{ doc.data.lede | safe }}{% endif %}{% endfor %}{% endfor %}
 {% endfor %}
+## For agents
+
+- [legible-records skill]({{ site.skillRaw }}): an agent skill for turning exports into records, and packing, checking and handing over bundles with the `legible` tool. Read it before writing records.
+
 ## Optional
 
 - [Specification repository]({{ site.spec }}): the spec's schemas, fixtures and test vectors, which an implementation passes
