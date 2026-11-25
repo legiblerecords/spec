@@ -47,7 +47,7 @@ A reference to an attachment is an object:
 
 ### Pointing at records elsewhere
 
-A `kind:key` reference must resolve in the records it travels with. Two shapes in `org.legiblerecords.common` point at things that don't, and a reader never resolves either inside a bundle, so neither can make a bundle `bad_bundle`.
+A `kind:key` reference must resolve in the records it travels with. Three shapes in `org.legiblerecords.common` point at things that don't: an external reference, an identifier and a person match. A reader never resolves any of them inside a bundle, so none can make a bundle `bad_bundle`.
 
 **An external reference** (`common.externalRef`) names a record that travels elsewhere, in another stream or from another publisher:
 
@@ -56,12 +56,22 @@ A `kind:key` reference must resolve in the records it travels with. Two shapes i
   "publisher": "acme.example", "revision": 3, "sha256": "…" }
 ```
 
-- `type` is the record's `$type` and `key` its `id`. `publisher` is absent when the record is the referring record's publisher's own.
+- `type` is the record's `$type`, the full type identifier (not the short name a `kind:key` reference uses), and `key` its `id`. `publisher` is absent when the record is the referring record's publisher's own.
 - `revision` is for types that number their own revisions, such as a policy. It is not the type's `version`.
 - `sha256` is the SHA-256 of the record's content line ([§ Content lines](#content-lines)), pinning exactly what it said.
 - A reader that holds the target resolves the reference, and shows one it can't resolve as unresolved. When the hash doesn't match the record it holds under that key and revision, it holds different content, and says so.
 
 **An identifier** (`common.identifier`) is something's id in one system, `{ "system": "github", "id": "acme/api" }`. The two halves together are the key: they match when both are exactly equal. `system` is lowercase free text, such as `github`, `gitlab`, `okta`, `entra`, `google`, `slack` or `serial`; a misspelt system matches nothing, and a reader shows that, rather than matching something else.
+
+A system name means one kind of id, so that two publishers describing the same thing write the same identifier. For a system that has a stable id and a changeable name, the system's own name means the stable id, and the name gets a system of its own:
+
+| System | `id` is | Example |
+|---|---|---|
+| `github` | for a person or account, the numeric user id; for a repository, `owner/name` | `4183920`, `acme/api` |
+| `github-login` | a GitHub login | `ana-lima-acme` |
+| `gitlab` | as `github` | `1290331`, `acme/tools` |
+| `okta`, `entra`, `google` | the directory's user id, not the sign-in name | `00u1ab2cd3` |
+| `serial` | a device's serial number, as printed | `C02XK1ABCD` |
 
 **A person match** (`common.personMatch`) is what a publisher knows about the person a record is about, when it doesn't know the reader's key for them:
 
