@@ -618,6 +618,33 @@ def without_provenance(value, top=True):
     return value
 
 
+def content_refusal(text):
+    """Why a record's text has no content line (records.md § Content lines), or None."""
+    def no_dupes(pairs):
+        keys = [k for k, _ in pairs]
+        if len(keys) != len(set(keys)):
+            raise ValueError("a key appears twice")
+        return dict(pairs)
+
+    def exact_int(token):
+        if float(token) != int(token):
+            raise ValueError(f"{token} isn't exact as a double")
+        return int(token)
+
+    try:
+        record = json.loads(text, object_pairs_hook=no_dupes, parse_int=exact_int,
+                            parse_constant=refuse_constant)
+    except ValueError as e:
+        return str(e)
+    if type(record) is not dict:
+        return "not an object"
+    try:
+        canonical(record).encode("utf-8")
+    except UnicodeEncodeError:
+        return "a lone surrogate"
+    return None
+
+
 def check_content_lines(path, problems):
     data = json.loads(path.read_text(encoding="utf-8"))
     hashes = {}
@@ -630,6 +657,11 @@ def check_content_lines(path, problems):
         if digest != case["sha256"]:
             problems.append(f"{where}: sha256 differs from the re-check")
         hashes[case["name"]] = digest
+    for case in data.get("refused", []):
+        if content_refusal(case["record_text"]) is None:
+            problems.append(f"{path.name} refused {case['name']}: the re-check accepts it")
+    if len(data.get("refused", [])) < 5:
+        problems.append(f"{path.name}: expected five refused cases")
     # The cases that must agree, and the one that must not.
     if hashes.get("plain") != hashes.get("provenance-removed"):
         problems.append(f"{path.name}: plain and provenance-removed must hash alike")

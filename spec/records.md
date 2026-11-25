@@ -56,7 +56,7 @@ A `kind:key` reference must resolve in the records it travels with. Three shapes
   "publisher": "acme.example", "revision": 3, "sha256": "…" }
 ```
 
-- `type` is the record's `$type`, the full type identifier (not the short name a `kind:key` reference uses), and `key` its `id`. `publisher` is absent when the record is the referring record's publisher's own.
+- `type` is the record's `$type`, the full type identifier (not the short name a `kind:key` reference uses), and `key` its `id`. `publisher` names whose record it is. A writer leaves it out only when the record is its own publisher's and the referring record travels where its publisher is known, in a signed bundle or a feed; in an unsigned bundle or a loose file it gives `publisher`, and a reader that finds no publisher either way shows the reference as unresolved.
 - `revision` is for types that number their own revisions, such as a policy. It is not the type's `version`.
 - `sha256` is the SHA-256 of the record's content line ([§ Content lines](#content-lines)), pinning exactly what it said.
 - A reader that holds the target resolves the reference, and shows one it can't resolve as unresolved. When the hash doesn't match the record it holds under that key and revision, it holds different content, and says so.
@@ -90,9 +90,10 @@ A record's **content line** is its canonical line ([§ Record sets](#record-sets
 
 - Provenance doesn't change content: republishing a record from a new build, or a later export, keeps its hash. A change to anything else the record says changes it.
 - Only top-level `produced_by` and `source` are removed; a field of that name inside another object is content.
-- The hash is over the canonical form, not over the bytes of a per-record file, which writers may format as they like.
+- The hash is over the canonical form, not over the bytes of a per-record file, which are written for people to read ([§ Writing a record](#writing-a-record)) and may differ in whitespace from one writer to another.
+- A record with no canonical form has no content line, and a tool asked for its hash refuses it: one that isn't an object, has a key twice, holds an integer a double can't hold exactly (such as `9007199254740993`), or holds a lone surrogate. Readers otherwise differ on which duplicate wins or how a number rounds, so two tools would disagree on its hash.
 
-[vectors/content-lines.json](../vectors/content-lines.json) gives records, their content lines and their hashes; `plain` and `provenance-removed` hash alike, and `changed-field` differs.
+[vectors/content-lines.json](../vectors/content-lines.json) gives records, their content lines and their hashes; `plain` and `provenance-removed` hash alike, and `changed-field` differs. Its `refused` cases are record texts a tool refuses.
 
 ## Bundles
 

@@ -1055,10 +1055,20 @@ def content_lines():
         line = content_line(record)
         out.append({"name": name, "record": record, "content_line": line,
                     "sha256": hashlib.sha256(line.encode()).hexdigest()})
+    # Record texts that have no canonical form, so no content line: a tool refuses them.
+    refused = [
+        ("duplicate-key", '{"$type":"tech.monorail.policy.document","id":"access-control","version":1,"title":"A","title":"B"}'),
+        ("integer-beyond-double", '{"$type":"tech.monorail.policy.document","id":"access-control","version":1,"count":9007199254740993}'),
+        ("long-integer", '{"$type":"tech.monorail.policy.document","id":"access-control","version":1,"count":123456789012345678901234567890}'),
+        ("lone-surrogate", '{"$type":"tech.monorail.policy.document","id":"access-control","version":1,"title":"\\ud800"}'),
+        ("not-an-object", '["access-control"]'),
+    ]
     return {
         "description": "Content lines and their SHA-256 (spec/records.md § Content lines). "
-                       "plain and provenance-removed hash alike; changed-field differs.",
+                       "plain and provenance-removed hash alike; changed-field differs. "
+                       "Each refused record_text has no canonical form, and a tool refuses it.",
         "cases": out,
+        "refused": [{"name": n, "record_text": t} for n, t in refused],
     }
 
 
