@@ -1,6 +1,8 @@
 // Checks every link inside the built site: each page a link names exists, and
-// so does each #section, in the HTML pages and in their Markdown copies.
-// Run after a build: node scripts/check-links.mjs
+// so does each #section, in the HTML pages and in their Markdown copies. Also
+// checks that each of the repository's schemas is served at the URL its $id
+// names, and that every $ref into this site names a served schema.
+// Run after a build, from site/: node scripts/check-links.mjs
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
@@ -54,6 +56,26 @@ for (const file of files) {
     }
   }
 }
+// Schemas: ../schemas/<type>/v<n>.json must have $id <site>/schemas/<type>/v<n>.json,
+// and be served there byte for byte.
+const SITE = "https://legiblerecords.org";
+for (const type of readdirSync("../schemas")) {
+  for (const file of readdirSync(join("../schemas", type)).filter((f) => /^v\d+\.json$/.test(f))) {
+    const source = join("../schemas", type, file);
+    const text = readFileSync(source, "utf8");
+    const schema = JSON.parse(text);
+    const want = `${SITE}/schemas/${type}/${file}`;
+    if (schema.$id !== want) problems.push(`${source}: $id is ${schema.$id}, expected ${want}`);
+    const served = join(root, "schemas", type, file);
+    if (!existsSync(served)) problems.push(`${source}: not served at ${want}`);
+    else if (readFileSync(served, "utf8") !== text) problems.push(`${served}: differs from ${source}`);
+    for (const m of text.matchAll(/"\$ref":\s*"(https:\/\/legiblerecords\.org\/[^"#]*)/g)) {
+      const target = join(root, m[1].slice(SITE.length));
+      if (!existsSync(target)) problems.push(`${source}: $ref ${m[1]} isn't served`);
+    }
+  }
+}
+
 for (const p of problems) console.error(p);
 console.log(`${files.length} files checked, ${problems.length} broken links`);
 process.exit(problems.length ? 1 : 0);

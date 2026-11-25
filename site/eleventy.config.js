@@ -1,5 +1,7 @@
 import { IdAttributePlugin } from "@11ty/eleventy";
 import syntaxHighlight from "@11ty/eleventy-plugin-syntaxhighlight";
+import { copyFileSync, mkdirSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import nav from "./src/_data/nav.js";
 
 // "/" -> "/index.md", "/types/" -> "/types.md": where a page's Markdown copy lives.
@@ -11,6 +13,17 @@ export default function (eleventyConfig) {
   // Headings get ids from their text, such as #content-lines, so pages can link to sections.
   eleventyConfig.addPlugin(IdAttributePlugin);
   eleventyConfig.addPassthroughCopy({ "src/css": "css" });
+
+  // The repository's schemas, at the paths their $ids name:
+  // ../schemas/<type>/v<n>.json is served at /schemas/<type>/v<n>.json.
+  eleventyConfig.on("eleventy.after", ({ dir }) => {
+    for (const type of readdirSync("../schemas")) {
+      for (const file of readdirSync(join("../schemas", type)).filter((f) => /^v\d+\.json$/.test(f))) {
+        mkdirSync(join(dir.output, "schemas", type), { recursive: true });
+        copyFileSync(join("../schemas", type, file), join(dir.output, "schemas", type, file));
+      }
+    }
+  });
 
   eleventyConfig.addFilter("markdownUrl", markdownUrl);
 
