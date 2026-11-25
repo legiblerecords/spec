@@ -1,7 +1,7 @@
 type: tech.monorail.vulnerabilities.sla
 version: 1
 title: vulnerability-sla
-description: How quickly an organization fixes vulnerabilities, by severity. Readers work out each alert's deadline rather than store it - the SLA in force today that covers its target, its current severity's days counted from its first_seen, or an approved, unexpired exception's expires when one covers it. An alert is late when it is still open after its deadline; under an acceptance it isn't late while the acceptance holds.
+description: How quickly an organization fixes vulnerabilities, by severity. Readers work out each alert's deadline rather than store it - the SLA in force today that covers its target, its current severity's days counted from its clock start, or an approved, unexpired exception's expires when one covers it. An alert is late when it is still open after its deadline; under an acceptance it isn't late while the acceptance holds. An alert that an active vulnerability triage covers is set aside, with no deadline. Its clock starts at first_seen, unless a change in its reachability_history took it out of the cover of a decision - a triage or an exception - that was in force at the moment of the change, its match matching the reachability before the change and not the one after; then the clock starts at the latest such change. A decision is in force at a moment when it was decided by then - a triage's at or on, an exception's latest approval - and not yet revoked, closed or expired; dates are whole days in UTC, with expires, revoked_on and closed_at counting through the end of their day. A decision with no such date never restarts a clock, and a requested, rejected or withdrawn exception is never in force. Readers keep revoked, replaced, expired and closed decisions, because this asks what was in force on past days.
 fields:
   id: slug -- This SLA's key, such as 2026-11, for references like vulnerability-sla:2026-11.
   title: string
@@ -11,7 +11,7 @@ fields:
     items:
       fields:
         severity: known(critical, high, medium, low, info) -- As in vulnerability-alert.
-        days: integer(1..) -- Calendar days from first_seen to fixed_at.
+        days: integer(1..) -- Calendar days from the alert's clock start (see the description) to fixed_at.
         note?: string
   scope?: string -- The repositories, VMs, container images or systems it covers, by name. Absent means all of them.
   owner?: string -- The owning role or person, by name.

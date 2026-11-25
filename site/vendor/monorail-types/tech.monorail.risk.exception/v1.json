@@ -1,7 +1,7 @@
 {
   "$id": "https://monorail.tech/schemas/tech.monorail.risk.exception/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "A time-limited, approved departure from a requirement - a policy, a commitment, a control or a vulnerability SLA - for the things it names. An extension moves a deadline; an acceptance lets the departure stand until it expires. It covers its subjects only while approved, until expires. It names what it departs from (requirement or requirement_ref) and what it covers (subjects, subject_refs or scope, at least one).",
+  "description": "A time-limited, approved departure from a requirement - a policy, a commitment, a control or a vulnerability SLA - for the things it names. An extension moves a deadline; an acceptance lets the departure stand until it expires. It covers the alerts and other things it names (subjects or subject_refs) or matches (match) only while approved, until expires or closed_at. It names what it departs from (requirement or requirement_ref) and what it covers (subjects, subject_refs, scope or match, at least one). Readers keep replaced, expired and closed exceptions, because an SLA's clock asks what was in force on past days.",
   "examples": [
     {
       "$type": "tech.monorail.risk.exception",
@@ -103,6 +103,63 @@
         "acceptance"
       ],
       "type": "string"
+    },
+    "match": {
+      "description": "What it covers as a rule over vulnerability alerts, applied to each alert as it is now, so it covers alerts that appear later. Every field given must match; within a field, any one value matches. A field left out matches anything; a field the alert has no value for doesn't match, except reachability, which counts as unknown. At least one field, and no empty lists.",
+      "properties": {
+        "advisory": {
+          "description": "Advisory ids, GHSA-… or CVE-…, compared case-insensitively against the alert's advisory and advisory_aliases.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ecosystem": {
+          "description": "Compared case-insensitively.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "package": {
+          "description": "Package names, compared exactly.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reachability": {
+          "description": "The facts it relies on.",
+          "items": {
+            "examples": [
+              "reachable",
+              "unreachable",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "target_kind": {
+          "items": {
+            "examples": [
+              "repository",
+              "vm",
+              "container-image"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "targets": {
+          "description": "Exact targets, compared as identifiers are, system and id.",
+          "items": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/identifier"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
     },
     "original_due": {
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/date",
