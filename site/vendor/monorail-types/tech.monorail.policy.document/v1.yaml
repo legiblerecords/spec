@@ -13,6 +13,8 @@ fields:
   body: string -- The policy text, in Markdown.
   statements?: ref(statement)[] -- Its passages, when they travel in the same bundle.
   review_by?: date
+  label?: string -- The version's own name in its source, such as 2.0. revision is its number.
+  acknowledgment_from?: integer(1..) -- Acknowledging this revision, or any from this one on, counts for this revision. Absent means only this revision's own acknowledgments count. At most revision.
   source_fields?: object -- The source's own fields that no field here covers, under the source's names. Readers keep it and don't interpret it. Never a personal value that a field here would label.
   produced_by?: produced_by
   source?: source

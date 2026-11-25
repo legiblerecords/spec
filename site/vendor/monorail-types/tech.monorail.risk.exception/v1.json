@@ -1,0 +1,198 @@
+{
+  "$id": "https://monorail.tech/schemas/tech.monorail.risk.exception/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A time-limited, approved departure from a requirement - a policy, a commitment, a control or a vulnerability SLA - for the things it names. An extension moves a deadline; an acceptance lets the departure stand until it expires. It covers its subjects only while approved, until expires. It names what it departs from (requirement or requirement_ref) and what it covers (subjects, subject_refs or scope, at least one).",
+  "examples": [
+    {
+      "$type": "tech.monorail.risk.exception",
+      "approvals": [
+        {
+          "at": "2026-11-24T16:00:00Z",
+          "name": "Sam Rivera",
+          "role": "Security lead"
+        }
+      ],
+      "compensating": "The vulnerable function is not reachable from request input; the WAF rule blocks the known payload.",
+      "expires": "2026-12-30",
+      "id": "ex-2026-014",
+      "kind": "extension",
+      "original_due": "2026-12-02",
+      "reason": "The fix needs a major upgrade that conflicts with the December release freeze.",
+      "requirement": "vulnerability-sla:2026-11",
+      "status": "approved",
+      "subjects": [
+        "vulnerability-alert:dependabot-412"
+      ],
+      "title": "Upgrade lodash in api after the Q4 freeze",
+      "version": 1
+    }
+  ],
+  "properties": {
+    "$type": {
+      "const": "tech.monorail.risk.exception"
+    },
+    "approvals": {
+      "items": {
+        "properties": {
+          "at": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime"
+          },
+          "name": {
+            "type": "string",
+            "x-data": [
+              "user.name"
+            ]
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "name",
+          "role"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "body": {
+      "description": "Notes, in Markdown.",
+      "type": "string"
+    },
+    "compensating": {
+      "description": "What reduces the risk meanwhile, in Markdown.",
+      "type": "string"
+    },
+    "compensating_controls": {
+      "items": {
+        "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/refString",
+        "ref": "control"
+      },
+      "type": "array"
+    },
+    "expires": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/date",
+      "description": "The last day it covers. For an extension, the new deadline."
+    },
+    "id": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
+      "description": "Such as ex-2026-014, for references like exception:ex-2026-014."
+    },
+    "kind": {
+      "description": "extension is still to be fixed, by expires; acceptance is not being fixed, and is reviewed by expires.",
+      "examples": [
+        "extension",
+        "acceptance"
+      ],
+      "type": "string"
+    },
+    "original_due": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/date",
+      "description": "For an extension, the deadline it moves; before expires."
+    },
+    "produced_by": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/produced_by"
+    },
+    "reason": {
+      "description": "Why, in Markdown.",
+      "type": "string"
+    },
+    "replaces": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/refString",
+      "description": "The exception this one renews or amends.",
+      "ref": "exception"
+    },
+    "requested_at": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime"
+    },
+    "requested_by": {
+      "type": "string",
+      "x-data": [
+        "user.name"
+      ]
+    },
+    "requirement": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/refString",
+      "description": "What it departs from, when that travels in the same bundle.",
+      "ref": [
+        "policy",
+        "statement",
+        "control",
+        "vulnerability-sla"
+      ]
+    },
+    "requirement_ref": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/externalRef",
+      "description": "What it departs from, when that travels elsewhere."
+    },
+    "residual_risk": {
+      "examples": [
+        "critical",
+        "high",
+        "medium",
+        "low"
+      ],
+      "type": "string"
+    },
+    "scope": {
+      "description": "What it covers, by name, when it is a class of things rather than a list, such as every repository in the legacy-billing group.",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/source"
+    },
+    "source_fields": {
+      "description": "The source's own fields that no field here covers, under the source's names. Readers keep it and don't interpret it. Never a personal value that a field here would label.",
+      "type": "object"
+    },
+    "status": {
+      "description": "Whether it is in force also depends on expires.",
+      "examples": [
+        "requested",
+        "approved",
+        "rejected",
+        "withdrawn"
+      ],
+      "type": "string"
+    },
+    "subject_refs": {
+      "description": "What it covers, when they travel elsewhere.",
+      "items": {
+        "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/externalRef"
+      },
+      "type": "array"
+    },
+    "subjects": {
+      "description": "What it covers, when they travel in the same bundle.",
+      "items": {
+        "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/refString",
+        "ref": [
+          "vulnerability-alert",
+          "device",
+          "account",
+          "control"
+        ]
+      },
+      "type": "array"
+    },
+    "title": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "$type",
+    "version",
+    "expires",
+    "id",
+    "kind",
+    "reason",
+    "status",
+    "title"
+  ],
+  "title": "exception",
+  "type": "object"
+}

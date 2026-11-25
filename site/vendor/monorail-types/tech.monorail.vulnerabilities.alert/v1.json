@@ -1,7 +1,7 @@
 {
   "$id": "https://monorail.tech/schemas/tech.monorail.vulnerabilities.alert/v1.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "description": "A scanner's alert about a vulnerability in one repository, such as from Aikido, Dependabot, Socket or Snyk, and its status there. Large scans travel as a record set.",
+  "description": "A scanner's alert about a vulnerability in a repository, a VM or a container image, such as from Aikido, Dependabot, Socket or Snyk, and its status there. Large scans travel as a record set.",
   "examples": [
     {
       "$type": "tech.monorail.vulnerabilities.alert",
@@ -11,13 +11,16 @@
       "first_seen": "2026-11-02T08:00:00Z",
       "id": "dependabot-412",
       "package": "lodash",
-      "repo": {
-        "id": "acme/api",
-        "system": "github"
-      },
       "scanner": "dependabot",
       "severity": "high",
       "status": "open",
+      "target": {
+        "id": {
+          "id": "acme/api",
+          "system": "github"
+        },
+        "kind": "repository"
+      },
       "version": 1
     }
   ],
@@ -29,10 +32,22 @@
       "description": "The canonical advisory id, GHSA-… or CVE-….",
       "type": "string"
     },
+    "affected_file": {
+      "description": "The vulnerable file, such as a library's path on a VM.",
+      "type": "string"
+    },
     "cvss": {
       "maximum": 10,
       "minimum": 0,
       "type": "number"
+    },
+    "cwes": {
+      "description": "Such as CWE-787.",
+      "items": {
+        "pattern": "^CWE-[0-9]+$",
+        "type": "string"
+      },
+      "type": "array"
     },
     "dismissed_reason": {
       "type": "string"
@@ -47,19 +62,25 @@
     "fixed_at": {
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime"
     },
+    "fixed_versions": {
+      "description": "The versions that fix it.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "id": {
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
       "description": "<scanner>-<the scanner's alert id>, such as dependabot-412."
+    },
+    "installed_version": {
+      "type": "string"
     },
     "package": {
       "type": "string"
     },
     "produced_by": {
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/produced_by"
-    },
-    "repo": {
-      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/identifier",
-      "description": "The repository, such as system github and id acme/api, for a reader to match exactly against the repositories it holds."
     },
     "scanner": {
       "description": "The scanner, in lowercase, such as aikido, dependabot, socket or snyk. (Not source, which is where every record says what it was built from.)",
@@ -92,6 +113,52 @@
       ],
       "type": "string"
     },
+    "target": {
+      "description": "What the vulnerability is in.",
+      "properties": {
+        "id": {
+          "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/identifier",
+          "description": "For a reader to match exactly against what it holds, such as system github and id acme/api, or system aikido and id 70001 for a VM. For a container image, the image repository without a tag or digest, such as ghcr.io/acme/api, so each build is the same target; seen_in says which build."
+        },
+        "kind": {
+          "examples": [
+            "repository",
+            "vm",
+            "container-image"
+          ],
+          "type": "string"
+        },
+        "name": {
+          "description": "How to show it, such as a VM's hostname.",
+          "type": "string"
+        },
+        "seen_in": {
+          "description": "The latest version of the target the scanner found it in, so a reader can skip a finding whose version is no longer running. At least one field.",
+          "properties": {
+            "commit": {
+              "description": "A repository's commit.",
+              "pattern": "^[0-9a-f]{7,64}$",
+              "type": "string"
+            },
+            "digest": {
+              "description": "A container image's digest, in the registry's own form.",
+              "pattern": "^sha256:[0-9a-f]{64}$",
+              "type": "string"
+            },
+            "tag": {
+              "description": "A container image's tag, such as 1.4.2. Tags move; a digest is exact.",
+              "type": "string"
+            }
+          },
+          "type": "object"
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "type": "object"
+    },
     "url": {
       "description": "The alert in the scanner's own interface.",
       "type": "string"
@@ -105,10 +172,10 @@
     "version",
     "first_seen",
     "id",
-    "repo",
     "scanner",
     "severity",
-    "status"
+    "status",
+    "target"
   ],
   "title": "vulnerability-alert",
   "type": "object"

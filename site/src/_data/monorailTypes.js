@@ -14,11 +14,9 @@ const groups = [
     heading: "Controls",
     types: ["tech.monorail.controls.control", "tech.monorail.controls.mapping", "tech.monorail.controls.statement"],
   },
-  {
-    heading: "Systems",
-    types: ["tech.monorail.access.account", "tech.monorail.it.device", "tech.monorail.vulnerabilities.alert"],
-  },
-  { heading: "Risk", types: ["tech.monorail.risk.appetite"] },
+  { heading: "Systems", types: ["tech.monorail.access.account", "tech.monorail.it.device"] },
+  { heading: "Vulnerabilities", types: ["tech.monorail.vulnerabilities.alert", "tech.monorail.vulnerabilities.sla"] },
+  { heading: "Risk", types: ["tech.monorail.risk.appetite", "tech.monorail.risk.exception"] },
 ];
 
 function load(type) {
@@ -88,7 +86,7 @@ export default function () {
     "## Patterns they share",
     "",
     "- **People.** A record about a person points at them with `person`, a `ref(person)`, when the person travels in the same bundle, or describes them with `person_match`, a [person match](/types/#person-matches), when they don't. It may have both. A reader shows one it can't match as unresolved and never guesses. A schema can't require one of the two, so the type's description says so and the fixtures check it.",
-    "- **Records elsewhere.** A policy acknowledgment points at the policy it acknowledges with an [external reference](/types/#external-references), pinning its revision and content hash. A vulnerability alert names its repository with an [identifier](/types/#identifiers).",
+    "- **Records elsewhere.** A policy acknowledgment points at the policy it acknowledges with an [external reference](/types/#external-references), pinning its revision and content hash. A vulnerability alert names what it's in, a repository, a VM or a container image, with an [identifier](/types/#identifiers).",
     "- **`source_fields`.** The source system's own fields that no field covers, under the source's names. Readers keep them and don't interpret them. They never hold a personal value that a labelled field would.",
     "- **Large sets.** Accounts, devices and vulnerability alerts often number in the thousands, and travel as [record sets](/bundles/#record-sets).",
     "- **Sensitivity labels.** Fields holding personal data carry labels such as `@user.name` and `@user.contact.email.work`.",

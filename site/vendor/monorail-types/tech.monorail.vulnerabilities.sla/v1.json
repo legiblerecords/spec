@@ -1,0 +1,167 @@
+{
+  "$id": "https://monorail.tech/schemas/tech.monorail.vulnerabilities.sla/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "How quickly an organization fixes vulnerabilities, by severity. Readers work out each alert's deadline rather than store it - the SLA in force today that covers its target, its current severity's days counted from its first_seen, or an approved, unexpired exception's expires when one covers it. An alert is late when it is still open after its deadline; under an acceptance it isn't late while the acceptance holds.",
+  "examples": [
+    {
+      "$type": "tech.monorail.vulnerabilities.sla",
+      "effective_date": "2026-11-01",
+      "exception_approver": "Security lead",
+      "id": "2026-11",
+      "max_extension_days": 30,
+      "targets": [
+        {
+          "days": 7,
+          "severity": "critical"
+        },
+        {
+          "days": 30,
+          "severity": "high"
+        },
+        {
+          "days": 90,
+          "severity": "medium"
+        },
+        {
+          "days": 180,
+          "severity": "low"
+        }
+      ],
+      "title": "Vulnerability remediation",
+      "version": 1
+    }
+  ],
+  "properties": {
+    "$type": {
+      "const": "tech.monorail.vulnerabilities.sla"
+    },
+    "approvals": {
+      "items": {
+        "properties": {
+          "at": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime"
+          },
+          "name": {
+            "type": "string",
+            "x-data": [
+              "user.name"
+            ]
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "at",
+          "name",
+          "role"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "body": {
+      "description": "Notes, in Markdown.",
+      "type": "string"
+    },
+    "effective_date": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/date"
+    },
+    "exception_approver": {
+      "description": "The role that approves exceptions to it, by name.",
+      "type": "string"
+    },
+    "id": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
+      "description": "This SLA's key, such as 2026-11, for references like vulnerability-sla:2026-11."
+    },
+    "max_extension_days": {
+      "description": "The longest a single extension may push a deadline back.",
+      "minimum": 1,
+      "type": "integer"
+    },
+    "owner": {
+      "description": "The owning role or person, by name.",
+      "type": "string"
+    },
+    "policy": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/refString",
+      "description": "The policy it carries out, when it travels in the same bundle.",
+      "ref": "policy"
+    },
+    "policy_ref": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/externalRef",
+      "description": "The policy it carries out, when it travels elsewhere."
+    },
+    "produced_by": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/produced_by"
+    },
+    "replaces": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/refString",
+      "description": "The SLA this one supersedes.",
+      "ref": "vulnerability-sla"
+    },
+    "review_by": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/date"
+    },
+    "scope": {
+      "description": "The repositories, VMs, container images or systems it covers, by name. Absent means all of them.",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/source"
+    },
+    "source_fields": {
+      "description": "The source's own fields that no field here covers, under the source's names. Readers keep it and don't interpret it. Never a personal value that a field here would label.",
+      "type": "object"
+    },
+    "targets": {
+      "description": "At most one per severity. A severity with no target has no deadline.",
+      "items": {
+        "properties": {
+          "days": {
+            "description": "Calendar days from first_seen to fixed_at.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "note": {
+            "type": "string"
+          },
+          "severity": {
+            "description": "As in vulnerability-alert.",
+            "examples": [
+              "critical",
+              "high",
+              "medium",
+              "low",
+              "info"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "days",
+          "severity"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "title": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "$type",
+    "version",
+    "effective_date",
+    "id",
+    "targets",
+    "title"
+  ],
+  "title": "vulnerability-sla",
+  "type": "object"
+}
