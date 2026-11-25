@@ -19,6 +19,11 @@
     "$type": {
       "const": "tech.monorail.policy.document"
     },
+    "acknowledgment_from": {
+      "description": "Acknowledging this revision, or any from this one on, counts for this revision. Absent means only this revision's own acknowledgments count. At most revision.",
+      "minimum": 1,
+      "type": "integer"
+    },
     "body": {
       "description": "The policy text, in Markdown.",
       "type": "string"
@@ -29,6 +34,10 @@
     "id": {
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
       "description": "Such as access-control, for references like policy:access-control."
+    },
+    "label": {
+      "description": "The version's own name in its source, such as 2.0. revision is its number.",
+      "type": "string"
     },
     "owner_role": {
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/refString",

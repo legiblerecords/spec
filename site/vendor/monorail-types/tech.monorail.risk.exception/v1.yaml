@@ -1,0 +1,48 @@
+type: tech.monorail.risk.exception
+version: 1
+title: exception
+description: A time-limited, approved departure from a requirement - a policy, a commitment, a control or a vulnerability SLA - for the things it names. An extension moves a deadline; an acceptance lets the departure stand until it expires. It covers its subjects only while approved, until expires. It names what it departs from (requirement or requirement_ref) and what it covers (subjects, subject_refs or scope, at least one).
+fields:
+  id: slug -- Such as ex-2026-014, for references like exception:ex-2026-014.
+  kind: known(extension, acceptance) -- extension is still to be fixed, by expires; acceptance is not being fixed, and is reviewed by expires.
+  status: known(requested, approved, rejected, withdrawn) -- Whether it is in force also depends on expires.
+  title: string
+  requirement?: ref(policy, statement, control, vulnerability-sla) -- What it departs from, when that travels in the same bundle.
+  requirement_ref?: externalRef -- What it departs from, when that travels elsewhere.
+  subjects?: ref(vulnerability-alert, device, account, control)[] -- What it covers, when they travel in the same bundle.
+  subject_refs?: externalRef[] -- What it covers, when they travel elsewhere.
+  scope?: string -- What it covers, by name, when it is a class of things rather than a list, such as every repository in the legacy-billing group.
+  reason: string -- Why, in Markdown.
+  compensating?: string -- What reduces the risk meanwhile, in Markdown.
+  compensating_controls?: ref(control)[]
+  residual_risk?: known(critical, high, medium, low)
+  original_due?: date -- For an extension, the deadline it moves; before expires.
+  expires: date -- The last day it covers. For an extension, the new deadline.
+  requested_by?: string @user.name
+  requested_at?: datetime
+  approvals?:
+    items:
+      fields:
+        name: string @user.name
+        role: string
+        at: datetime
+  replaces?: ref(exception) -- The exception this one renews or amends.
+  body?: string -- Notes, in Markdown.
+  source_fields?: object -- The source's own fields that no field here covers, under the source's names. Readers keep it and don't interpret it. Never a personal value that a field here would label.
+  produced_by?: produced_by
+  source?: source
+examples:
+  - $type: tech.monorail.risk.exception
+    version: 1
+    id: ex-2026-014
+    kind: extension
+    status: approved
+    title: Upgrade lodash in api after the Q4 freeze
+    requirement: vulnerability-sla:2026-11
+    subjects: [vulnerability-alert:dependabot-412]
+    reason: The fix needs a major upgrade that conflicts with the December release freeze.
+    compensating: The vulnerable function is not reachable from request input; the WAF rule blocks the known payload.
+    original_due: 2026-12-02
+    expires: 2026-12-30
+    approvals:
+      - { name: Sam Rivera, role: Security lead, at: 2026-11-24T16:00:00Z }
