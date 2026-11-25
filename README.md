@@ -16,6 +16,10 @@ It is built with [Eleventy](https://www.11ty.dev): Markdown pages, one layout, a
 | `vendor/monorail-types/` | Monorail's types, copied from [track-legible-records](https://github.com/Monorail-Tech/track-legible-records); `SOURCE` says which commit |
 | `src/_data/monorailTypes.js` | Builds the Monorail types page from them |
 | `scripts/sync-monorail-types.mjs` | Copies them again |
+| `vendor/spec/` | The specification's prose, copied from [legiblerecords/spec](https://github.com/legiblerecords/spec); `SOURCE` says which commit |
+| `src/_data/spec.js` | Builds a page under `/spec/` from each spec file |
+| `scripts/sync-spec.mjs` | Copies the spec again |
+| `scripts/check-links.mjs` | Checks that every page and `#section` a link names exists |
 
 ## Working on it
 
@@ -26,6 +30,17 @@ To add a page, write `src/<name>.md` with a `title` (and optionally a `lede`) in
 ## Content
 
 The pages summarize the [spec](https://github.com/legiblerecords/spec) and the [tools](https://github.com/legiblerecords/tools) READMEs. Where they disagree, the spec is right: change the site to match it. Examples use the spec's own: `acme.example`, `Example Co`, and Monorail's published types.
+
+## Guides and the specification
+
+The pages under `/spec/` are the specification itself, copied from the spec repo: only their links change, so they work on this site. The other pages are guides to using Legible Records. Where a rule is normative, a guide links to the spec section that states it, rather than restating it, so the two can't drift apart. When the spec changes, copy it again and commit what changes:
+
+```sh
+node scripts/sync-spec.mjs ../spec
+npm run check
+```
+
+A new spec file also needs a line in `src/_data/spec.js` and in `src/_data/nav.js`; the build stops and says so until it has them. `npm run check` (or `mise run check`) builds the site and fails on any link to a page or `#section` that doesn't exist.
 
 ## Monorail types
 

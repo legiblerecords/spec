@@ -52,4 +52,4 @@ Write only the fields the type defines. Write keys in sorted order, numbers in t
 
 ## Read the spec
 
-This site summarizes the [specification](https://github.com/legiblerecords/spec). Where they differ, the spec is right.
+The guides on this site show how to use Legible Records. The [specification](/spec/records/) says exactly what they are, and is the one to follow when you implement any part of them: a reader, a verifier, or a port of the tools. Where a guide and the spec differ, the spec is right.

@@ -76,4 +76,6 @@ legible keys sign keys.json -k acme-2026-11.key.json -o keys.sig
 
 > Exit 0 from `verify` doesn't mean a signature was checked. Only `signature: verified` means that, and it needs `--pin` or `--key-set`.
 
-Spec: [records.md § Signed bundles](https://github.com/legiblerecords/spec/blob/main/spec/records.md#signed-bundles).
+## Implementing it
+
+This page covers using signatures with the `legible` tool. To check signatures or key sets in your own code, follow the spec: the order of a reader's checks in [§ Reading a signed bundle](/spec/records/#reading-a-signed-bundle), and the five steps for deciding on a key set in [§ Key sets](/spec/records/#key-sets). Run the spec's signature, key-set and bundle test vectors against it. A summary leaves out exactly the cases an implementation gets wrong.

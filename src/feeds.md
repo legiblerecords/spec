@@ -87,4 +87,14 @@ q3-report: withdrawn
 
 `feed check` keeps nothing, so it can't detect a replay. Use it to see whether a feed and its signatures are good. `feed pull` keeps reader state, so a bundle older than the last one accepted is refused as `replay`.
 
-Spec: [feeds.md](https://github.com/legiblerecords/spec/blob/main/spec/feeds.md).
+## Implementing a reader
+
+This page covers publishing and reading feeds with the `legible` tool. Use `legible feed pull`, or the Rust library it is built on, rather than writing a reader of your own: a reader decides what to trust, and most of its rules are about what an attacker who controls the storage or the publisher's server can and can't do.
+
+To implement one anyway, follow the spec, not this page:
+
+- [Feeds § Reading a feed](/spec/feeds/#reading-a-feed): the checks of a poll, in order.
+- [§ Trust](/spec/feeds/#trust) and [Records and bundles § Key sets](/spec/records/#key-sets): which keys to trust, approvals, and what a revocation clears.
+- [§ Reader state](/spec/feeds/#reader-state): what to remember, and what a stateless reader's destination must do instead.
+- [§ Access](/spec/feeds/#access) and [§ Connection files](/spec/feeds/#connection-files): authentication, and what to refuse before fetching anything.
+- The [feed vectors](https://github.com/legiblerecords/spec/tree/main/vectors/feeds), and the key-set and bundle vectors: a reader conforms when it passes them.

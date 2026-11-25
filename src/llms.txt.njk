@@ -7,7 +7,7 @@ layout: false
 
 > {{ site.summary | safe }}
 
-Every page below is also available as Markdown at the linked URL. The whole site is in one file at {{ site.url }}/llms-full.txt. This site summarizes the specification; where they differ, the spec is right: {{ site.spec }}
+Every page below is also available as Markdown at the linked URL. The whole site is in one file at {{ site.url }}/llms-full.txt. The guides show how to use Legible Records. To implement any part of it, follow the Specification pages and pass the spec's test vectors; where a guide and the spec differ, the spec is right.
 {% for group in nav %}
 ## {{ group.heading }}
 {% for p in group.pages %}{% for doc in collections.docs %}{% if doc.url == p.url %}
@@ -15,5 +15,5 @@ Every page below is also available as Markdown at the linked URL. The whole site
 {% endfor %}
 ## Optional
 
-- [Specification]({{ site.spec }}): the normative prose, schemas, fixtures and test vectors
+- [Specification repository]({{ site.spec }}): the spec's schemas, fixtures and test vectors, which an implementation passes
 - [Tools]({{ site.tools }}): the `legible` command-line tool and its Rust and JavaScript libraries

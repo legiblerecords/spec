@@ -8,7 +8,7 @@ export default [
     ],
   },
   {
-    heading: "Spec",
+    heading: "Guides",
     pages: [
       { title: "Types", url: "/types/" },
       { title: "Bundles", url: "/bundles/" },
@@ -16,6 +16,16 @@ export default [
       { title: "Feeds", url: "/feeds/" },
       { title: "Schema language", url: "/schema-language/" },
       { title: "Rules for types", url: "/rules/" },
+    ],
+  },
+  {
+    heading: "Specification",
+    pages: [
+      { title: "Records and bundles", url: "/spec/records/" },
+      { title: "Schema language", url: "/spec/schema-language/" },
+      { title: "Restricted YAML", url: "/spec/restricted-yaml/" },
+      { title: "Rules for published types", url: "/spec/rules/" },
+      { title: "Feeds", url: "/spec/feeds/" },
     ],
   },
   {
