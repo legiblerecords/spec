@@ -46,6 +46,33 @@ A reader that streams a set treats what it has read as provisional until the end
 
 There is at most one set per kind. A per-record file's name is its record's `id`, so each record has one name whichever form it travels in. A bundle may use both forms, for different kinds, or for one kind across versions.
 
+## Describing a delivery
+
+A bundle sent on its own, outside a feed, can say what a reader can't work out by comparing it with what it holds. Each field is optional, in `manifest.json`:
+
+- `prepared_by`: who prepared it, as a person match, so the reader knows whom to ask.
+- `note`: what the bundle is and why, in Markdown.
+- `record_notes`: a note on one record, by `type` and `key`, such as why it changed or was removed.
+- `complete`: the `$type`s it holds every record of. A record of one of them that the reader holds and the bundle lacks was removed; for any other type, a missing record may just have been left out.
+- `based_on`: the bundle the publisher started from, by the SHA-256 of its `manifest.json`, so that changes the reader made since then aren't read as the publisher undoing them.
+
+```json
+{
+  "$type": "org.legiblerecords.bundle",
+  "version": 1,
+  "prepared_by": { "emails": ["dana@acme.example"], "name": "Dana Ortiz" },
+  "note": "Data classification added to payroll and CRM after our Q4 review.",
+  "record_notes": [
+    { "type": "example.acme.systems.system", "key": "legacy-crm", "note": "Retired in October." }
+  ],
+  "complete": ["example.acme.systems.system"],
+  "based_on": { "manifest_sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08" },
+  "files": [ … ]
+}
+```
+
+The [specification](/spec/records/#describing-a-delivery) says how a reader compares, and how it reads a record as stale or in conflict.
+
 ## Packing and verifying
 
 ```sh

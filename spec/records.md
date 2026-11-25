@@ -170,6 +170,38 @@ The manifest has two more optional fields, so that a signature can say more than
 
 A **publisher** is a domain the signer controls, written as a lowercase domain: labels of letters, digits and hyphens, none starting or ending with a hyphen, at least two labels joined by `.`, the last of them not all digits (so an IP address is not a publisher), at most 253 characters, with no scheme, port or path. It is [`common.domain`](../schemas/org.legiblerecords.common/v1.yaml); everything in this spec that names a publisher, including the `<publisher>` in a feed id ([`common.feedId`](../schemas/org.legiblerecords.common/v1.yaml)), uses that pattern. The schemas' patterns use no lookahead, so that every regular-expression engine reads them alike, and bound lengths with `maxLength`.
 
+### Describing a delivery
+
+A bundle handed over on its own, outside a feed, such as a client's systems sent to their auditor, says only what is true now. A reader finds what changed by comparing it with the records it holds. Content hashes ([§ Content lines](#content-lines)) make that exact. Five more optional manifest fields tell a reader what the comparison can't: whether a missing record was removed, what the publisher started from, and who made the bundle and why. Adding them doesn't change the type's version.
+
+| Field | Holds |
+|---|---|
+| `prepared_by` | `common.personMatch`: who prepared the bundle, for a reader to match against the people it holds and ask. |
+| `note` | Markdown: what the bundle is and why it was made, such as "Data classification added to payroll and CRM after our Q4 review." |
+| `record_notes` | a list of `{ type, key, note }`: a note on one record, by its `$type` and `id`. The record need not be in the bundle, so that a note can explain a removal. These are not references, and are never resolved. |
+| `complete` | a list of `$type`s that the bundle holds every record of, whatever their version. |
+| `based_on` | `{ manifest_sha256, published_at? }`: the bundle the publisher started from, by the SHA-256 of its `manifest.json` as stored, such as one the reader sent it. `published_at` is that bundle's, for people to read. |
+
+**Comparing.** A reader that compares a bundle with the records it holds sorts each record of a type the bundle carries, keyed by `$type` and `id`, as:
+
+- **new**: in the bundle, and not held;
+- **changed**: in the bundle with a content hash other than the held record's;
+- **unchanged**: in the bundle with the held record's content hash;
+- **removed**: held, missing from the bundle, and of a type `complete` lists. A missing record of a type it doesn't list says nothing: the bundle may be partial. A type in `complete` with no record in the bundle means the publisher has none left.
+
+When the bundle has `based_on` and the reader holds that bundle's records, or their content hashes, it refines this, so that changes made on its own side since then aren't read as the publisher undoing them:
+
+- a **changed** record that is in the bundle as it was in the based-on bundle (the same content hash) is **stale**: the publisher didn't change it, and the reader's copy is newer;
+- a **changed** record that differs from the based-on bundle's, and whose held copy also differs from it, is a **conflict**: both sides changed it, and a person decides;
+- a **new** record that is in the bundle as it was in the based-on bundle is **stale** too: the reader has removed it since;
+- a **removed** record that wasn't in the based-on bundle isn't removed: the publisher never saw it.
+
+A reader that doesn't hold the based-on bundle says so, and compares as if `based_on` were absent.
+
+**Trust.** These fields are what the bundle says. In a signed bundle the signature covers them, as it covers the rest of the manifest, so they are the publisher's statement; in an unsigned one they are anyone's. `prepared_by` names who the publisher says prepared the bundle, not who sent it, and a reader shows it as that. A `note` or `record_notes` that disagrees with the comparison, such as a note on a record that didn't change, is shown with it: the comparison says what changed, the notes say why. None of these fields can make a bundle `bad_bundle`.
+
+**In a feed.** A stream's bundle already holds every record of the stream ([feeds.md](feeds.md)), so `complete` adds nothing there, and a reader of a feed decides removals by the stream as before. `prepared_by`, `note` and `record_notes` mean the same in a feed's bundle as in any other.
+
 ### Signed bundles
 
 `manifest.sig` is a JSON object:

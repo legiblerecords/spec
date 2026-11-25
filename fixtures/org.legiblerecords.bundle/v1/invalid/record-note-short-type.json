@@ -1,0 +1,12 @@
+{
+  "$type": "org.legiblerecords.bundle",
+  "files": [],
+  "record_notes": [
+    {
+      "key": "legacy-crm",
+      "note": "Retired in October.",
+      "type": "system"
+    }
+  ],
+  "version": 1
+}

@@ -24,6 +24,31 @@
     "$type": {
       "const": "org.legiblerecords.bundle"
     },
+    "based_on": {
+      "description": "The bundle the publisher started from, such as one the reader sent it.",
+      "properties": {
+        "manifest_sha256": {
+          "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/sha256",
+          "description": "Of that bundle's manifest.json, as stored."
+        },
+        "published_at": {
+          "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime",
+          "description": "That bundle's published_at, for people to read."
+        }
+      },
+      "required": [
+        "manifest_sha256"
+      ],
+      "type": "object"
+    },
+    "complete": {
+      "description": "The types this bundle holds every record of, whatever their version. A record of one of these types that a reader holds and the bundle lacks was removed at the source. A type not listed may be partial.",
+      "items": {
+        "pattern": "^[a-z0-9-]+(\\.[a-z0-9-]+)+$",
+        "type": "string"
+      },
+      "type": "array"
+    },
     "feed": {
       "description": "The feed and stream this bundle was published for.",
       "properties": {
@@ -79,12 +104,47 @@
       },
       "type": "array"
     },
+    "note": {
+      "description": "What the bundle is and why it was made, in Markdown.",
+      "type": "string"
+    },
+    "prepared_by": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/personMatch",
+      "description": "Who prepared the bundle, for a reader to ask about it. What the bundle says, not proof of who sent it."
+    },
     "produced_by": {
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/produced_by"
     },
     "published_at": {
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime",
       "description": "When the publisher made this bundle. Required when the bundle is in a feed."
+    },
+    "record_notes": {
+      "description": "Notes on single records, such as why one changed or was removed.",
+      "items": {
+        "properties": {
+          "key": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
+            "description": "The record's id. The record need not be in the bundle, so that a note can explain a removal."
+          },
+          "note": {
+            "description": "In Markdown.",
+            "type": "string"
+          },
+          "type": {
+            "description": "The record's $type.",
+            "pattern": "^[a-z0-9-]+(\\.[a-z0-9-]+)+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "key",
+          "note"
+        ],
+        "type": "object"
+      },
+      "type": "array"
     },
     "source": {
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/source"
