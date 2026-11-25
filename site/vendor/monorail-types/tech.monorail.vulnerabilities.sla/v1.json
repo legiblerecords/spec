@@ -39,7 +39,8 @@
       "items": {
         "properties": {
           "at": {
-            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime"
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime",
+            "description": "When it was approved. Exactly one of at and on."
           },
           "name": {
             "type": "string",
@@ -47,12 +48,15 @@
               "user.name"
             ]
           },
+          "on": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/date",
+            "description": "The day it was approved, when the source records only the day."
+          },
           "role": {
             "type": "string"
           }
         },
         "required": [
-          "at",
           "name",
           "role"
         ],

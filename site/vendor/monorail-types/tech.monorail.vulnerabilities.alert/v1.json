@@ -71,7 +71,7 @@
     },
     "id": {
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
-      "description": "<scanner>-<the scanner's alert id>, such as dependabot-412."
+      "description": "<scanner>-<the scanner's alert id>, such as dependabot-412. When one scanner alert covers several targets, as a Socket alert can, there is a record for each target, with id <scanner>-<alert id>-<target>, the target being its id lowercased with each run of other characters a hyphen, such as socket-1474-acme-api."
     },
     "installed_version": {
       "type": "string"
@@ -81,6 +81,15 @@
     },
     "produced_by": {
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/produced_by"
+    },
+    "reachability": {
+      "description": "The scanner's analysis of whether the vulnerable code can be reached, when it gives one. A scanner's finer values, such as Socket's maybe_reachable, map to these, and the scanner's own value goes in source_fields.",
+      "examples": [
+        "reachable",
+        "unreachable",
+        "unknown"
+      ],
+      "type": "string"
     },
     "scanner": {
       "description": "The scanner, in lowercase, such as aikido, dependabot, socket or snyk. (Not source, which is where every record says what it was built from.)",
@@ -133,8 +142,15 @@
           "type": "string"
         },
         "seen_in": {
-          "description": "The latest version of the target the scanner found it in, so a reader can skip a finding whose version is no longer running. At least one field.",
+          "description": "The latest version of the target the scanner found it in, so a reader can skip a finding whose version is no longer running. At least one field; an empty branches doesn't count.",
           "properties": {
+            "branches": {
+              "description": "A repository's branches it is still present on, such as main and dev. One record covers them all.",
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
             "commit": {
               "description": "A repository's commit.",
               "pattern": "^[0-9a-f]{7,64}$",

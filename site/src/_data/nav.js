@@ -30,7 +30,10 @@ export default [
   },
   {
     heading: "Published types",
-    pages: [{ title: "Monorail", url: "/monorail-types/" }],
+    pages: [
+      { title: "Monorail", url: "/monorail-types/" },
+      { title: "Monorail data taxonomy", url: "/monorail-data-taxonomy/" },
+    ],
   },
   {
     heading: "Reference",

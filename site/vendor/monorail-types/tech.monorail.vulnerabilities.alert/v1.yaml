@@ -3,7 +3,7 @@ version: 1
 title: vulnerability-alert
 description: A scanner's alert about a vulnerability in a repository, a VM or a container image, such as from Aikido, Dependabot, Socket or Snyk, and its status there. Large scans travel as a record set.
 fields:
-  id: slug -- <scanner>-<the scanner's alert id>, such as dependabot-412.
+  id: slug -- <scanner>-<the scanner's alert id>, such as dependabot-412. When one scanner alert covers several targets, as a Socket alert can, there is a record for each target, with id <scanner>-<alert id>-<target>, the target being its id lowercased with each run of other characters a hyphen, such as socket-1474-acme-api.
   scanner: /^[a-z0-9][a-z0-9.:-]*$/ -- The scanner, in lowercase, such as aikido, dependabot, socket or snyk. (Not source, which is where every record says what it was built from.)
   target:
     description: What the vulnerability is in.
@@ -12,11 +12,12 @@ fields:
       id: identifier -- For a reader to match exactly against what it holds, such as system github and id acme/api, or system aikido and id 70001 for a VM. For a container image, the image repository without a tag or digest, such as ghcr.io/acme/api, so each build is the same target; seen_in says which build.
       name?: string -- How to show it, such as a VM's hostname.
       seen_in?:
-        description: The latest version of the target the scanner found it in, so a reader can skip a finding whose version is no longer running. At least one field.
+        description: The latest version of the target the scanner found it in, so a reader can skip a finding whose version is no longer running. At least one field; an empty branches doesn't count.
         fields:
           digest?: /^sha256:[0-9a-f]{64}$/ -- A container image's digest, in the registry's own form.
           tag?: string -- A container image's tag, such as 1.4.2. Tags move; a digest is exact.
           commit?: /^[0-9a-f]{7,64}$/ -- A repository's commit.
+          branches?: string[] -- A repository's branches it is still present on, such as main and dev. One record covers them all.
   package?: string
   ecosystem?: string -- Such as npm, cargo or pypi.
   advisory?: string -- The canonical advisory id, GHSA-… or CVE-….
@@ -26,6 +27,7 @@ fields:
   installed_version?: string
   fixed_versions?: string[] -- The versions that fix it.
   cwes?: /^CWE-[0-9]+$/[] -- Such as CWE-787.
+  reachability?: known(reachable, unreachable, unknown) -- The scanner's analysis of whether the vulnerable code can be reached, when it gives one. A scanner's finer values, such as Socket's maybe_reachable, map to these, and the scanner's own value goes in source_fields.
   status: known(open, fixed, dismissed, auto-dismissed)
   dismissed_reason?: string
   first_seen: datetime

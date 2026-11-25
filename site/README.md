@@ -17,7 +17,9 @@ It is built with [Eleventy](https://www.11ty.dev): Markdown pages, one layout, a
 | `eleventy.config.js` | Eleventy's settings |
 | `vendor/monorail-types/` | Monorail's types, copied from [track-legible-records](https://github.com/Monorail-Tech/track-legible-records); `SOURCE` says which commit |
 | `src/_data/monorailTypes.js` | Builds the Monorail types page from them |
-| `scripts/sync-monorail-types.mjs` | Copies them again |
+| `vendor/monorail-taxonomy/` | Monorail's data taxonomy, copied from the same repository with its `NOTICE.md` and `LICENSE`; `SOURCE` says which commit |
+| `src/_data/monorailTaxonomy.js` | Builds the Monorail data taxonomy page from it |
+| `scripts/sync-monorail-types.mjs` | Copies both again |
 | `src/_data/spec.js` | Builds a page under `/spec/` from each file in `../spec/` |
 | `scripts/check-links.mjs` | Checks that every page and `#section` a link names exists, and that every schema in `../schemas/` is served at its `$id` |
 
@@ -48,6 +50,10 @@ node scripts/sync-monorail-types.mjs ../track-legible-records
 ```
 
 A new type also needs a place in a group in `src/_data/monorailTypes.js`; the build stops and says so until it has one.
+
+The same command copies Monorail's data taxonomy, which the Monorail data taxonomy page is built from. The site serves the file beside the page, at `/monorail-data-taxonomy/v<n>.json`, with its notice (as `NOTICE.txt`, since a `.md` path here is a page's Markdown copy) and `LICENSE`.
+
+Most of the taxonomy is [Fideslang](https://github.com/ethyca/fideslang) by Ethyca, under CC BY 4.0, not this repository's Apache-2.0. The page's Credit section, the notice and the licence must stay with it: the build stops if the file has no attribution, and the sync refuses a taxonomy without its notice and licence.
 
 ## Deploying
 
