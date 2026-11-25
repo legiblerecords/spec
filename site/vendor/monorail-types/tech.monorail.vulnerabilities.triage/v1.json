@@ -1,0 +1,186 @@
+{
+  "$id": "https://monorail.tech/schemas/tech.monorail.vulnerabilities.triage/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A decision that vulnerability alerts need no fix - not applicable, or a false positive - for the alerts it names or matches, kept apart from the scanner's own status so it survives each import. While active it sets aside every alert it covers, so they have no deadline. It covers an alert only while the alert matches it; when the alert changes, such as becoming reachable, it no longer does and the finding is new. Revoking it restarts nothing - the alerts it set aside count from their first_seen again, or from an earlier exit from a decision's cover if they have one, and one that needs more time gets an exception with kind extension. Readers keep revoked decisions, because an SLA's clock asks what was in force on past days. Accepting a risk is an exception, not a triage decision. It names what it covers (subjects, subject_refs or match, at least one) and when it was decided (at or on, exactly one).",
+  "examples": [
+    {
+      "$type": "tech.monorail.vulnerabilities.triage",
+      "decided_by": "Ana Lima",
+      "decision": "not-applicable",
+      "id": "tri-2026-031",
+      "match": {
+        "advisory": [
+          "CVE-2099-00003"
+        ],
+        "reachability": [
+          "unreachable"
+        ],
+        "targets": [
+          {
+            "id": "acme/api",
+            "system": "github"
+          }
+        ]
+      },
+      "on": "2026-11-05",
+      "reason": "Unreachable per scanner analysis.",
+      "review_by": "2027-05-01",
+      "status": "active",
+      "version": 1
+    }
+  ],
+  "properties": {
+    "$type": {
+      "const": "tech.monorail.vulnerabilities.triage"
+    },
+    "at": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime",
+      "description": "When it was decided. Exactly one of at and on."
+    },
+    "body": {
+      "description": "Notes, in Markdown.",
+      "type": "string"
+    },
+    "decided_by": {
+      "type": "string",
+      "x-data": [
+        "user.name"
+      ]
+    },
+    "decision": {
+      "examples": [
+        "not-applicable",
+        "false-positive"
+      ],
+      "type": "string"
+    },
+    "id": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
+      "description": "Such as tri-2026-031, for references like vulnerability-triage:tri-2026-031."
+    },
+    "match": {
+      "description": "What it covers as a rule over vulnerability alerts, applied to each alert as it is now, so it covers alerts that appear later. Every field given must match; within a field, any one value matches. A field left out matches anything; a field the alert has no value for doesn't match, except reachability, which counts as unknown. At least one field, and no empty lists.",
+      "properties": {
+        "advisory": {
+          "description": "Advisory ids, GHSA-… or CVE-…, compared case-insensitively against the alert's advisory and advisory_aliases.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "ecosystem": {
+          "description": "Compared case-insensitively.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "package": {
+          "description": "Package names, compared exactly.",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reachability": {
+          "description": "The facts it relies on.",
+          "items": {
+            "examples": [
+              "reachable",
+              "unreachable",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "target_kind": {
+          "items": {
+            "examples": [
+              "repository",
+              "vm",
+              "container-image"
+            ],
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "targets": {
+          "description": "Exact targets, compared as identifiers are, system and id.",
+          "items": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/identifier"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "on": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/date",
+      "description": "The day it was decided, when the source records only the day."
+    },
+    "produced_by": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/produced_by"
+    },
+    "reason": {
+      "description": "Why, in Markdown, such as Unreachable per Socket, or Dev dependency, not shipped.",
+      "type": "string"
+    },
+    "replaces": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/refString",
+      "description": "The decision this one amends.",
+      "ref": "vulnerability-triage"
+    },
+    "review_by": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/date",
+      "description": "When someone should look again. It still applies after this date."
+    },
+    "revoked_on": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/date",
+      "description": "When it was revoked; only when status is revoked, and then required."
+    },
+    "source": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/source"
+    },
+    "source_fields": {
+      "description": "The source's own fields that no field here covers, under the source's names. Readers keep it and don't interpret it. Never a personal value that a field here would label.",
+      "type": "object"
+    },
+    "status": {
+      "description": "revoked is no longer applied, for whatever reason. A changed alert needs no revocation, because it simply stops matching.",
+      "examples": [
+        "active",
+        "revoked"
+      ],
+      "type": "string"
+    },
+    "subject_refs": {
+      "description": "What it covers, when they travel elsewhere.",
+      "items": {
+        "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/externalRef"
+      },
+      "type": "array"
+    },
+    "subjects": {
+      "description": "What it covers, when they travel in the same bundle. A list names alerts whatever their reachability; to rely on reachability, use match.",
+      "items": {
+        "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/refString",
+        "ref": "vulnerability-alert"
+      },
+      "type": "array"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "$type",
+    "version",
+    "decision",
+    "id",
+    "reason",
+    "status"
+  ],
+  "title": "vulnerability-triage",
+  "type": "object"
+}

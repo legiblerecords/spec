@@ -1,7 +1,7 @@
 type: tech.monorail.risk.exception
 version: 1
 title: exception
-description: A time-limited, approved departure from a requirement - a policy, a commitment, a control or a vulnerability SLA - for the things it names. An extension moves a deadline; an acceptance lets the departure stand until it expires. It covers its subjects only while approved, until expires. It names what it departs from (requirement or requirement_ref) and what it covers (subjects, subject_refs or scope, at least one).
+description: A time-limited, approved departure from a requirement - a policy, a commitment, a control or a vulnerability SLA - for the things it names. An extension moves a deadline; an acceptance lets the departure stand until it expires. It covers the alerts and other things it names (subjects or subject_refs) or matches (match) only while approved, until expires or closed_at. It names what it departs from (requirement or requirement_ref) and what it covers (subjects, subject_refs, scope or match, at least one). Readers keep replaced, expired and closed exceptions, because an SLA's clock asks what was in force on past days.
 fields:
   id: slug -- Such as ex-2026-014, for references like exception:ex-2026-014.
   kind: known(extension, acceptance) -- extension is still to be fixed, by expires; acceptance is not being fixed, and is reviewed by expires.
@@ -12,6 +12,15 @@ fields:
   subjects?: ref(vulnerability-alert, device, account, control)[] -- What it covers, when they travel in the same bundle.
   subject_refs?: externalRef[] -- What it covers, when they travel elsewhere.
   scope?: string -- What it covers, by name, when it is a class of things rather than a list, such as every repository in the legacy-billing group.
+  match?:
+    description: What it covers as a rule over vulnerability alerts, applied to each alert as it is now, so it covers alerts that appear later. Every field given must match; within a field, any one value matches. A field left out matches anything; a field the alert has no value for doesn't match, except reachability, which counts as unknown. At least one field, and no empty lists.
+    fields:
+      advisory?: string[] -- Advisory ids, GHSA-… or CVE-…, compared case-insensitively against the alert's advisory and advisory_aliases.
+      package?: string[] -- Package names, compared exactly.
+      ecosystem?: string[] -- Compared case-insensitively.
+      target_kind?: known(repository, vm, container-image)[]
+      targets?: identifier[] -- Exact targets, compared as identifiers are, system and id.
+      reachability?: known(reachable, unreachable, unknown)[] -- The facts it relies on.
   reason: string -- Why, in Markdown.
   compensating?: string -- What reduces the risk meanwhile, in Markdown.
   compensating_controls?: ref(control)[]

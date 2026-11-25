@@ -18,7 +18,14 @@ const groups = [
     heading: "Systems",
     types: ["tech.monorail.systems.system", "tech.monorail.access.account", "tech.monorail.it.device"],
   },
-  { heading: "Vulnerabilities", types: ["tech.monorail.vulnerabilities.alert", "tech.monorail.vulnerabilities.sla"] },
+  {
+    heading: "Vulnerabilities",
+    types: [
+      "tech.monorail.vulnerabilities.alert",
+      "tech.monorail.vulnerabilities.triage",
+      "tech.monorail.vulnerabilities.sla",
+    ],
+  },
   { heading: "Risk", types: ["tech.monorail.risk.appetite", "tech.monorail.risk.exception"] },
 ];
 

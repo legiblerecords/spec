@@ -32,6 +32,13 @@
       "description": "The canonical advisory id, GHSA-… or CVE-….",
       "type": "string"
     },
+    "advisory_aliases": {
+      "description": "The advisory's other ids, such as the CVE for a GHSA advisory, so a rule written with either matches.",
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
     "affected_file": {
       "description": "The vulnerable file, such as a library's path on a VM.",
       "type": "string"
@@ -83,13 +90,37 @@
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/produced_by"
     },
     "reachability": {
-      "description": "The scanner's analysis of whether the vulnerable code can be reached, when it gives one. A scanner's finer values, such as Socket's maybe_reachable, map to these, and the scanner's own value goes in source_fields.",
+      "description": "The scanner's analysis of whether the vulnerable code can be reached, when it gives one. Across several locations, such as branches, it is unreachable only if every location is, and otherwise the most reachable value, reachable before unknown. A scanner value that says the code may be reached maps to reachable, and one that says the analysis couldn't decide maps to unknown; the scanner's own value goes in source_fields.",
       "examples": [
         "reachable",
         "unreachable",
         "unknown"
       ],
       "type": "string"
+    },
+    "reachability_history": {
+      "description": "Each reachability the scanner has reported and when it started, oldest first, as far as the publisher has seen; one entry per change, not per scan. The last entry is the current reachability. Only with reachability. A publisher's first export starts it with one entry.",
+      "items": {
+        "properties": {
+          "reachability": {
+            "examples": [
+              "reachable",
+              "unreachable",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "since": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime"
+          }
+        },
+        "required": [
+          "reachability",
+          "since"
+        ],
+        "type": "object"
+      },
+      "type": "array"
     },
     "scanner": {
       "description": "The scanner, in lowercase, such as aikido, dependabot, socket or snyk. (Not source, which is where every record says what it was built from.)",

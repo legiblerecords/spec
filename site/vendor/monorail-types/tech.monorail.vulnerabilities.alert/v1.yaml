@@ -21,13 +21,20 @@ fields:
   package?: string
   ecosystem?: string -- Such as npm, cargo or pypi.
   advisory?: string -- The canonical advisory id, GHSA-… or CVE-….
+  advisory_aliases?: string[] -- The advisory's other ids, such as the CVE for a GHSA advisory, so a rule written with either matches.
   severity: known(critical, high, medium, low, info)
   cvss?: number(0..10)
   affected_file?: string -- The vulnerable file, such as a library's path on a VM.
   installed_version?: string
   fixed_versions?: string[] -- The versions that fix it.
   cwes?: /^CWE-[0-9]+$/[] -- Such as CWE-787.
-  reachability?: known(reachable, unreachable, unknown) -- The scanner's analysis of whether the vulnerable code can be reached, when it gives one. A scanner's finer values, such as Socket's maybe_reachable, map to these, and the scanner's own value goes in source_fields.
+  reachability?: known(reachable, unreachable, unknown) -- The scanner's analysis of whether the vulnerable code can be reached, when it gives one. Across several locations, such as branches, it is unreachable only if every location is, and otherwise the most reachable value, reachable before unknown. A scanner value that says the code may be reached maps to reachable, and one that says the analysis couldn't decide maps to unknown; the scanner's own value goes in source_fields.
+  reachability_history?:
+    description: Each reachability the scanner has reported and when it started, oldest first, as far as the publisher has seen; one entry per change, not per scan. The last entry is the current reachability. Only with reachability. A publisher's first export starts it with one entry.
+    items:
+      fields:
+        reachability: known(reachable, unreachable, unknown)
+        since: datetime
   status: known(open, fixed, dismissed, auto-dismissed)
   dismissed_reason?: string
   first_seen: datetime

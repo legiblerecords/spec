@@ -67,7 +67,7 @@
   ],
   "categories": [
     {
-      "description": "Business information about the client itself, as distinct from personal data about people.",
+      "description": "Business information about the organization itself, as distinct from personal data about people.",
       "key": "company",
       "name": "Company data",
       "parent": null,
@@ -97,7 +97,7 @@
       "regimes": []
     },
     {
-      "description": "Source code of the client's products and tools.",
+      "description": "Source code of the organization's products and tools.",
       "key": "company.engineering.source_code",
       "name": "Source code",
       "parent": "company.engineering",
@@ -207,7 +207,7 @@
       "regimes": []
     },
     {
-      "description": "Material the client has published.",
+      "description": "Material the organization has published.",
       "key": "company.public",
       "name": "Published material",
       "parent": "company",
@@ -277,7 +277,7 @@
       "regimes": []
     },
     {
-      "description": "Information about the client's security: program, assets, findings, access, incidents and monitoring.",
+      "description": "Information about the organization's security: program, assets, findings, access, incidents and monitoring.",
       "key": "company.security",
       "name": "Security",
       "parent": "company",
@@ -423,7 +423,7 @@
       "parent": null,
       "source": "fideslang",
       "level": "internal",
-      "why": "Operational data about the client's systems.",
+      "why": "Operational data about the organization's systems.",
       "regimes": []
     },
     {
@@ -1495,16 +1495,16 @@
       "name": "Customer",
       "source": "fideslang",
       "floor": "confidential",
-      "why": "Who buys from the client, business or consumer."
+      "why": "Who buys from the organization, business or consumer."
     },
     {
       "common": true,
-      "description": "A person who uses the client's product, under a customer's account or as a consumer. Fideslang's customer is the purchaser, who for a B2B client is a buyer contact.",
+      "description": "A person who uses the organization's product, under a customer's account or as a consumer. Fideslang's customer is the purchaser, who for a B2B organization is a buyer contact.",
       "key": "customer_user",
       "name": "Customer user",
       "source": "monorail",
       "floor": "confidential",
-      "why": "People using the client's product: the client's duty of care runs to them."
+      "why": "People using the organization's product: the organization's duty of care runs to them."
     },
     {
       "common": true,
@@ -1531,7 +1531,7 @@
       "name": "Next of Kin",
       "source": "fideslang",
       "floor": "confidential",
-      "why": "Third parties who never dealt with the client."
+      "why": "Third parties who never dealt with the organization."
     },
     {
       "common": false,
@@ -1558,7 +1558,7 @@
       "name": "Prospect",
       "source": "fideslang",
       "floor": "confidential",
-      "why": "Who a client is selling to is competitive information, B2B or B2C."
+      "why": "Who an organization is selling to is competitive information, B2B or B2C."
     },
     {
       "common": false,
