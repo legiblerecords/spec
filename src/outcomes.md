@@ -19,7 +19,7 @@ lede: A reader of a bundle, a feed or a key set returns one of these codes when 
 
 | Code | Meaning |
 |---|---|
-| `bad_bundle` | Zip entry names, hashes, file list or references fail, or `published_at` is wrong |
+| `bad_bundle` | Zip entry names, hashes, file list or references fail, a `kind:key` repeats, a record set isn't canonical or its count is wrong, or `published_at` is wrong |
 | `missing_published_at` | A bundle in a feed has no `published_at` |
 
 ## Feeds
@@ -42,4 +42,4 @@ lede: A reader of a bundle, a feed or a key set returns one of these codes when 
 | `needs_approval` | Adds a key with no valid endorsement |
 | `key_set_rollback` | Older than the held set, drops a key, or clears a retired or revoked date |
 
-Spec: [feeds.md § Outcomes]({{ site.spec }}/blob/main/spec/feeds.md#outcomes).
+Spec: [feeds.md § Outcomes](https://github.com/legiblerecords/spec/blob/main/spec/feeds.md#outcomes).

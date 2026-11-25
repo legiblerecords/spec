@@ -1,0 +1,21 @@
+---
+permalink: /llms-full.txt
+eleventyExcludeFromCollections: true
+layout: false
+---
+# {{ site.name | safe }}
+
+> {{ site.summary | safe }}
+
+This is every page of {{ site.url }} as Markdown, in reading order. It summarizes the specification; where they differ, the spec is right: {{ site.spec }}
+{% for doc in collections.docs %}
+---
+
+# {{ (doc.data.heading or doc.data.title) | safe }}
+
+Source: {{ site.url }}{{ doc.url }}
+
+> {{ doc.data.lede | safe }}
+
+{{ doc.rawInput | asMarkdown | safe }}
+{% endfor %}

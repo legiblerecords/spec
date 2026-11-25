@@ -1,0 +1,19 @@
+---
+permalink: /llms.txt
+eleventyExcludeFromCollections: true
+layout: false
+---
+# {{ site.name | safe }}
+
+> {{ site.summary | safe }}
+
+Every page below is also available as Markdown at the linked URL. The whole site is in one file at {{ site.url }}/llms-full.txt. This site summarizes the specification; where they differ, the spec is right: {{ site.spec }}
+{% for group in nav %}
+## {{ group.heading }}
+{% for p in group.pages %}{% for doc in collections.docs %}{% if doc.url == p.url %}
+- [{{ p.title | safe }}]({{ site.url }}{{ p.url | markdownUrl }}): {{ doc.data.lede | safe }}{% endif %}{% endfor %}{% endfor %}
+{% endfor %}
+## Optional
+
+- [Specification]({{ site.spec }}): the normative prose, schemas, fixtures and test vectors
+- [Tools]({{ site.tools }}): the `legible` command-line tool and its Rust and JavaScript libraries
