@@ -1,0 +1,115 @@
+{
+  "$id": "https://monorail.tech/schemas/tech.monorail.vulnerabilities.alert/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A scanner's alert about a vulnerability in one repository, such as from Aikido, Dependabot, Socket or Snyk, and its status there. Large scans travel as a record set.",
+  "examples": [
+    {
+      "$type": "tech.monorail.vulnerabilities.alert",
+      "advisory": "GHSA-qqqq-wwww-mmmm",
+      "cvss": 7.2,
+      "ecosystem": "npm",
+      "first_seen": "2026-11-02T08:00:00Z",
+      "id": "dependabot-412",
+      "package": "lodash",
+      "repo": {
+        "id": "acme/api",
+        "system": "github"
+      },
+      "scanner": "dependabot",
+      "severity": "high",
+      "status": "open",
+      "version": 1
+    }
+  ],
+  "properties": {
+    "$type": {
+      "const": "tech.monorail.vulnerabilities.alert"
+    },
+    "advisory": {
+      "description": "The canonical advisory id, GHSA-… or CVE-….",
+      "type": "string"
+    },
+    "cvss": {
+      "maximum": 10,
+      "minimum": 0,
+      "type": "number"
+    },
+    "dismissed_reason": {
+      "type": "string"
+    },
+    "ecosystem": {
+      "description": "Such as npm, cargo or pypi.",
+      "type": "string"
+    },
+    "first_seen": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime"
+    },
+    "fixed_at": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/datetime"
+    },
+    "id": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
+      "description": "<scanner>-<the scanner's alert id>, such as dependabot-412."
+    },
+    "package": {
+      "type": "string"
+    },
+    "produced_by": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/produced_by"
+    },
+    "repo": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/identifier",
+      "description": "The repository, such as system github and id acme/api, for a reader to match exactly against the repositories it holds."
+    },
+    "scanner": {
+      "description": "The scanner, in lowercase, such as aikido, dependabot, socket or snyk. (Not source, which is where every record says what it was built from.)",
+      "pattern": "^[a-z0-9][a-z0-9.:-]*$",
+      "type": "string"
+    },
+    "severity": {
+      "examples": [
+        "critical",
+        "high",
+        "medium",
+        "low",
+        "info"
+      ],
+      "type": "string"
+    },
+    "source": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/source"
+    },
+    "source_fields": {
+      "description": "The source's own fields that no field here covers, under the source's names. Readers keep it and don't interpret it. Never a personal value that a field here would label.",
+      "type": "object"
+    },
+    "status": {
+      "examples": [
+        "open",
+        "fixed",
+        "dismissed",
+        "auto-dismissed"
+      ],
+      "type": "string"
+    },
+    "url": {
+      "description": "The alert in the scanner's own interface.",
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "$type",
+    "version",
+    "first_seen",
+    "id",
+    "repo",
+    "scanner",
+    "severity",
+    "status"
+  ],
+  "title": "vulnerability-alert",
+  "type": "object"
+}

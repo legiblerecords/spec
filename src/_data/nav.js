@@ -19,6 +19,10 @@ export default [
     ],
   },
   {
+    heading: "Published types",
+    pages: [{ title: "Monorail", url: "/monorail-types/" }],
+  },
+  {
     heading: "Reference",
     pages: [
       { title: "CLI", url: "/cli/" },

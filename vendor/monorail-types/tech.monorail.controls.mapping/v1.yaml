@@ -1,0 +1,22 @@
+type: tech.monorail.controls.mapping
+version: 1
+title: control-mapping
+description: One control meeting one framework criterion. Criteria travel by id alone, so no framework's text is ever in a file.
+fields:
+  id: slug -- <control id>-<framework>-<criterion slug>, such as mfa-soc2-cc6-1. The criterion slug is the criterion lowercased, with every run of characters other than a-z and 0-9 made one hyphen and hyphens trimmed from both ends. When two mappings would share an id, each takes -h and the first 8 hex digits of the SHA-256 of <control id>, a newline, <framework>, a newline and the exact criterion (UTF-8), so an id never depends on which other mappings exist.
+  control: ref(control)
+  framework: known(soc2, iso27001, nist-csf)
+  criterion: string -- The framework's own id, exactly, such as CC6.1 or PR.AA-03. Never the criterion's text.
+  by: known(auditor, library, monorail, organization) -- Who made the mapping.
+  note?: string
+  source_fields?: object -- The source's own fields that no field here covers, under the source's names. Readers keep it and don't interpret it. Never a personal value that a field here would label.
+  produced_by?: produced_by
+  source?: source
+examples:
+  - $type: tech.monorail.controls.mapping
+    version: 1
+    id: mfa-soc2-cc6-1
+    control: control:mfa
+    framework: soc2
+    criterion: CC6.1
+    by: library

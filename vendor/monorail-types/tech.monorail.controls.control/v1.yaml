@@ -1,0 +1,30 @@
+type: tech.monorail.controls.control
+version: 1
+title: control
+description: What the organization does to make its commitments true. Framework criteria it meets are control-mapping records; the policy passages that rely on it are statement records.
+fields:
+  id: slug -- Such as mfa, for references like control:mfa.
+  title: string
+  status: known(proposed, active, retired)
+  owner: string -- The owning role or person, by name.
+  owner_role?: ref(role) -- The owning role, when it travels in the same bundle.
+  owner_role_ref?: externalRef -- The owning role, when it travels elsewhere.
+  body: string -- What is done, in Markdown.
+  scope?: string -- The systems it covers, by name.
+  audience?: string -- The people it covers, by name.
+  assess_every_months?: integer(1..) -- How long an assessment lasts; 12 when absent.
+  due?: date -- When it is meant to be in place.
+  library?: string -- The Monorail library control it was copied from.
+  library_version?: string
+  source_fields?: object -- The source's own fields that no field here covers, under the source's names. Readers keep it and don't interpret it. Never a personal value that a field here would label.
+  produced_by?: produced_by
+  source?: source
+examples:
+  - $type: tech.monorail.controls.control
+    version: 1
+    id: mfa
+    title: Multi-factor sign-in
+    status: active
+    owner: Security lead
+    owner_role: role:security-lead
+    body: Every company account signs in through SSO with a passkey or authenticator app.

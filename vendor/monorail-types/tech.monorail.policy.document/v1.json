@@ -1,0 +1,95 @@
+{
+  "$id": "https://monorail.tech/schemas/tech.monorail.policy.document/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A policy as it is shown to people - its text, its own revision and its status. Whichever system shows a policy publishes it, under its own domain; acknowledgments point at it with an external reference pinning its revision and content hash.",
+  "examples": [
+    {
+      "$type": "tech.monorail.policy.document",
+      "body": "# Access control\n\nEveryone signs in with SSO and a passkey.\n",
+      "effective_date": "2026-11-01",
+      "id": "access-control",
+      "owner_role": "role:security-lead",
+      "revision": 3,
+      "status": "published",
+      "title": "Access control",
+      "version": 1
+    }
+  ],
+  "properties": {
+    "$type": {
+      "const": "tech.monorail.policy.document"
+    },
+    "body": {
+      "description": "The policy text, in Markdown.",
+      "type": "string"
+    },
+    "effective_date": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/date"
+    },
+    "id": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
+      "description": "Such as access-control, for references like policy:access-control."
+    },
+    "owner_role": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/refString",
+      "description": "When the role travels in the same bundle.",
+      "ref": "role"
+    },
+    "owner_role_ref": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/externalRef",
+      "description": "When the role travels elsewhere."
+    },
+    "produced_by": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/produced_by"
+    },
+    "review_by": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/date"
+    },
+    "revision": {
+      "description": "The policy's own revision number, raised on every published change. Not the type's version.",
+      "minimum": 1,
+      "type": "integer"
+    },
+    "source": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/source"
+    },
+    "source_fields": {
+      "description": "The source's own fields that no field here covers, under the source's names. Readers keep it and don't interpret it. Never a personal value that a field here would label.",
+      "type": "object"
+    },
+    "statements": {
+      "description": "Its passages, when they travel in the same bundle.",
+      "items": {
+        "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/refString",
+        "ref": "statement"
+      },
+      "type": "array"
+    },
+    "status": {
+      "examples": [
+        "draft",
+        "published",
+        "retired"
+      ],
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "$type",
+    "version",
+    "body",
+    "effective_date",
+    "id",
+    "revision",
+    "status",
+    "title"
+  ],
+  "title": "policy",
+  "type": "object"
+}

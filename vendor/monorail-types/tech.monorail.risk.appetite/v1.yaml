@@ -1,0 +1,38 @@
+type: tech.monorail.risk.appetite
+version: 1
+title: risk-appetite
+description: An organization's stated risk appetite - how large a loss it could absorb, and how rarely it can accept losses of each size.
+fields:
+  id: slug -- This appetite's key, such as 2026-11, for references like risk-appetite:2026-11.
+  organization: string
+  currency: /^[A-Z]{3}$/ -- ISO 4217 code for every amount in this record.
+  decided_at: date -- When leadership agreed to it.
+  thresholds:
+    items:
+      fields:
+        level: known(serious, existential) -- serious is a major setback; existential would end the company.
+        loss: number(0..) -- In the record's currency.
+        one_in_years: number(1..) -- A loss at least this large no more often than once in this many years.
+        label?: string -- The organization's own words for this level.
+        reasoning?: string
+  approvals?:
+    items:
+      fields:
+        name: string @user.name
+        role: string
+        at: datetime
+  review_by?: date
+  replaces?: ref(risk-appetite) -- The appetite this one supersedes.
+  body?: string -- Notes, in Markdown.
+  produced_by?: produced_by
+  source?: source
+examples:
+  - $type: tech.monorail.risk.appetite
+    version: 1
+    id: 2026-11
+    organization: Example Co
+    currency: USD
+    decided_at: 2026-11-18
+    thresholds:
+      - { level: serious, label: A major setback, loss: 2000000, one_in_years: 25 }
+      - { level: existential, label: Company-ending, loss: 8000000, one_in_years: 200 }

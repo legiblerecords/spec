@@ -1,0 +1,28 @@
+type: tech.monorail.policy.document
+version: 1
+title: policy
+description: A policy as it is shown to people - its text, its own revision and its status. Whichever system shows a policy publishes it, under its own domain; acknowledgments point at it with an external reference pinning its revision and content hash.
+fields:
+  id: slug -- Such as access-control, for references like policy:access-control.
+  title: string
+  revision: integer(1..) -- The policy's own revision number, raised on every published change. Not the type's version.
+  effective_date: date
+  status: known(draft, published, retired)
+  owner_role?: ref(role) -- When the role travels in the same bundle.
+  owner_role_ref?: externalRef -- When the role travels elsewhere.
+  body: string -- The policy text, in Markdown.
+  statements?: ref(statement)[] -- Its passages, when they travel in the same bundle.
+  review_by?: date
+  source_fields?: object -- The source's own fields that no field here covers, under the source's names. Readers keep it and don't interpret it. Never a personal value that a field here would label.
+  produced_by?: produced_by
+  source?: source
+examples:
+  - $type: tech.monorail.policy.document
+    version: 1
+    id: access-control
+    title: Access control
+    revision: 3
+    effective_date: 2026-11-01
+    status: published
+    owner_role: role:security-lead
+    body: "# Access control\n\nEveryone signs in with SSO and a passkey.\n"

@@ -13,6 +13,9 @@ It is built with [Eleventy](https://www.11ty.dev): Markdown pages, one layout, a
 | `src/_includes/base.njk` | The layout every page uses |
 | `src/css/site.css` | All the styles, black on white |
 | `eleventy.config.js` | Eleventy's settings |
+| `vendor/monorail-types/` | Monorail's types, copied from [track-legible-records](https://github.com/Monorail-Tech/track-legible-records); `SOURCE` says which commit |
+| `src/_data/monorailTypes.js` | Builds the Monorail types page from them |
+| `scripts/sync-monorail-types.mjs` | Copies them again |
 
 ## Working on it
 
@@ -23,6 +26,16 @@ To add a page, write `src/<name>.md` with a `title` (and optionally a `lede`) in
 ## Content
 
 The pages summarize the [spec](https://github.com/legiblerecords/spec) and the [tools](https://github.com/legiblerecords/tools) READMEs. Where they disagree, the spec is right: change the site to match it. Examples use the spec's own: `acme.example`, `Example Co`, and Monorail's published types.
+
+## Monorail types
+
+The Monorail types page is built from the schemas in `vendor/monorail-types/`, so it shows each type exactly as published: its description, its fields in the short form, and its examples. When the types change, copy them again from a checkout of track-legible-records and commit what changes:
+
+```sh
+node scripts/sync-monorail-types.mjs ../track-legible-records
+```
+
+A new type also needs a place in a group in `src/_data/monorailTypes.js`; the build stops and says so until it has one.
 
 ## Deploying
 

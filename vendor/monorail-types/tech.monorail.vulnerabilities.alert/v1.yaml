@@ -1,0 +1,34 @@
+type: tech.monorail.vulnerabilities.alert
+version: 1
+title: vulnerability-alert
+description: A scanner's alert about a vulnerability in one repository, such as from Aikido, Dependabot, Socket or Snyk, and its status there. Large scans travel as a record set.
+fields:
+  id: slug -- <scanner>-<the scanner's alert id>, such as dependabot-412.
+  scanner: /^[a-z0-9][a-z0-9.:-]*$/ -- The scanner, in lowercase, such as aikido, dependabot, socket or snyk. (Not source, which is where every record says what it was built from.)
+  repo: identifier -- The repository, such as system github and id acme/api, for a reader to match exactly against the repositories it holds.
+  package?: string
+  ecosystem?: string -- Such as npm, cargo or pypi.
+  advisory?: string -- The canonical advisory id, GHSA-… or CVE-….
+  severity: known(critical, high, medium, low, info)
+  cvss?: number(0..10)
+  status: known(open, fixed, dismissed, auto-dismissed)
+  dismissed_reason?: string
+  first_seen: datetime
+  fixed_at?: datetime
+  url?: string -- The alert in the scanner's own interface.
+  source_fields?: object -- The source's own fields that no field here covers, under the source's names. Readers keep it and don't interpret it. Never a personal value that a field here would label.
+  produced_by?: produced_by
+  source?: source
+examples:
+  - $type: tech.monorail.vulnerabilities.alert
+    version: 1
+    id: dependabot-412
+    scanner: dependabot
+    repo: { system: github, id: acme/api }
+    package: lodash
+    ecosystem: npm
+    advisory: GHSA-qqqq-wwww-mmmm
+    severity: high
+    cvss: 7.2
+    status: open
+    first_seen: 2026-11-02T08:00:00Z
