@@ -1,0 +1,19 @@
+---
+permalink: /llms.txt
+eleventyExcludeFromCollections: true
+layout: false
+---
+# {{ site.name | safe }}
+
+> {{ site.summary | safe }}
+
+Every page below is also available as Markdown at the linked URL. The whole site is in one file at {{ site.url }}/llms-full.txt. The guides show how to use Legible Records. To implement any part of it, follow the Specification pages and pass the spec's test vectors; where a guide and the spec differ, the spec is right.
+{% for group in nav %}
+## {{ group.heading }}
+{% for p in group.pages %}{% for doc in collections.docs %}{% if doc.url == p.url %}
+- [{{ p.title | safe }}]({{ site.url }}{{ p.url | markdownUrl }}): {{ doc.data.lede | safe }}{% endif %}{% endfor %}{% endfor %}
+{% endfor %}
+## Optional
+
+- [Specification repository]({{ site.spec }}): the spec's schemas, fixtures and test vectors, which an implementation passes
+- [Tools]({{ site.tools }}): the `legible` command-line tool and its Rust and JavaScript libraries

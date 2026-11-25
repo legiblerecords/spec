@@ -1,0 +1,143 @@
+{
+  "$id": "https://monorail.tech/schemas/tech.monorail.people.person/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "A person in an organization - an employee, contractor or service identity - as an HR tool or identity provider knows them. Other records point at a person with ref(person) when it travels in the same bundle, or describe them with a personMatch when it doesn't.",
+  "examples": [
+    {
+      "$type": "tech.monorail.people.person",
+      "emails": [
+        "ana@acme.example"
+      ],
+      "id": "ana-lima",
+      "identifiers": [
+        {
+          "id": "00u1ab2cd3",
+          "system": "okta"
+        }
+      ],
+      "kind": "employee",
+      "manager": "person:bo-silva",
+      "name": "Ana Lima",
+      "start_date": "2024-03-04",
+      "status": "active",
+      "team": "Platform",
+      "title": "Platform engineer",
+      "version": 1
+    }
+  ],
+  "properties": {
+    "$type": {
+      "const": "tech.monorail.people.person"
+    },
+    "emails": {
+      "description": "Work addresses; the first is primary.",
+      "items": {
+        "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/email"
+      },
+      "type": "array",
+      "x-data": [
+        "user.contact.email.work"
+      ]
+    },
+    "end_date": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/date",
+      "x-data": [
+        "user.workplace"
+      ]
+    },
+    "id": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
+      "description": "The publisher's key for this person, such as ana-lima, for references like person:ana-lima."
+    },
+    "identifiers": {
+      "description": "This person's ids in other systems, so others' personMatch finds them.",
+      "items": {
+        "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/identifier"
+      },
+      "type": "array",
+      "x-data": [
+        "user.unique_id"
+      ]
+    },
+    "kind": {
+      "examples": [
+        "employee",
+        "contractor",
+        "service-account"
+      ],
+      "type": "string"
+    },
+    "manager": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/refString",
+      "description": "When the manager travels in the same bundle.",
+      "ref": "person",
+      "x-data": [
+        "user.unique_id"
+      ]
+    },
+    "manager_match": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/personMatch",
+      "description": "Otherwise. Needs emails or identifiers.",
+      "x-data": [
+        "user.name",
+        "user.contact.email.work",
+        "user.unique_id"
+      ]
+    },
+    "name": {
+      "type": "string",
+      "x-data": [
+        "user.name"
+      ]
+    },
+    "produced_by": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/produced_by"
+    },
+    "source": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/source"
+    },
+    "source_fields": {
+      "description": "The source's own fields that no field here covers, under the source's names. Readers keep it and don't interpret it. Never a personal value that a field here would label.",
+      "type": "object"
+    },
+    "start_date": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/date",
+      "x-data": [
+        "user.workplace"
+      ]
+    },
+    "status": {
+      "examples": [
+        "active",
+        "suspended",
+        "terminated"
+      ],
+      "type": "string"
+    },
+    "team": {
+      "description": "The publisher's own label, for display.",
+      "type": "string",
+      "x-data": [
+        "user.workplace"
+      ]
+    },
+    "title": {
+      "type": "string",
+      "x-data": [
+        "user.job_title"
+      ]
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "$type",
+    "version",
+    "id",
+    "name",
+    "status"
+  ],
+  "title": "person",
+  "type": "object"
+}

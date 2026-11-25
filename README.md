@@ -22,6 +22,7 @@ Status: draft. Nothing here is stable yet; expect changes until version 1 is pub
 | [schemas/](schemas/) | The shared definitions every type uses, and the spec's own types (bundles, key sets, feeds, connection files), under `org.legiblerecords` |
 | [fixtures/](fixtures/) | Records every implementation must accept or reject |
 | [vectors/](vectors/) | Test vectors for the schema language, restricted YAML, signatures, key sets, bundles and feeds |
+| [site/](site/) | The documentation site at [legiblerecords.org](https://legiblerecords.org): guides, this spec as pages, and the schemas at their `$id`s |
 
 ## Types and namespaces
 

@@ -16,6 +16,7 @@ Contributions are accepted under the [Developer Certificate of Origin](https://d
   - `python scripts/check_vectors.py`
   - `python scripts/make_vectors.py --check`, which fails if a committed vector differs from what the generator writes
   - `python scripts/check_mutations.py`, which disables checks in `check_vectors.py` one at a time and fails unless the vectors then catch it
+- A change to `spec/` or `schemas/` is published on the [site](site/), which CI builds and checks: in `site/`, run `npm ci` and `npm run check`. It fails on a link to a missing page or section, such as a heading a guide links to that the change renamed, and on a schema not served at its `$id`. Update a guide the change makes wrong in the same pull request.
 - Keep the expanded `v<n>.json` and the short-form `v<n>.yaml` of a schema in step. The JSON is what `legible expand <yaml> --base https://legiblerecords.org/schemas/` writes from the YAML, byte for byte.
 
 ## Publishing your own types

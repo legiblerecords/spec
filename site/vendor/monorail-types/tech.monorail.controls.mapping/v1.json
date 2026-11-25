@@ -1,0 +1,78 @@
+{
+  "$id": "https://monorail.tech/schemas/tech.monorail.controls.mapping/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "One control meeting one framework criterion. Criteria travel by id alone, so no framework's text is ever in a file.",
+  "examples": [
+    {
+      "$type": "tech.monorail.controls.mapping",
+      "by": "library",
+      "control": "control:mfa",
+      "criterion": "CC6.1",
+      "framework": "soc2",
+      "id": "mfa-soc2-cc6-1",
+      "version": 1
+    }
+  ],
+  "properties": {
+    "$type": {
+      "const": "tech.monorail.controls.mapping"
+    },
+    "by": {
+      "description": "Who made the mapping.",
+      "examples": [
+        "auditor",
+        "library",
+        "monorail",
+        "organization"
+      ],
+      "type": "string"
+    },
+    "control": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/refString",
+      "ref": "control"
+    },
+    "criterion": {
+      "description": "The framework's own id, exactly, such as CC6.1 or PR.AA-03. Never the criterion's text.",
+      "type": "string"
+    },
+    "framework": {
+      "examples": [
+        "soc2",
+        "iso27001",
+        "nist-csf"
+      ],
+      "type": "string"
+    },
+    "id": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
+      "description": "<control id>-<framework>-<criterion slug>, such as mfa-soc2-cc6-1. The criterion slug is the criterion lowercased, with every run of characters other than a-z and 0-9 made one hyphen and hyphens trimmed from both ends. When two mappings would share an id, each takes -h and the first 8 hex digits of the SHA-256 of <control id>, a newline, <framework>, a newline and the exact criterion (UTF-8), so an id never depends on which other mappings exist."
+    },
+    "note": {
+      "type": "string"
+    },
+    "produced_by": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/produced_by"
+    },
+    "source": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/source"
+    },
+    "source_fields": {
+      "description": "The source's own fields that no field here covers, under the source's names. Readers keep it and don't interpret it. Never a personal value that a field here would label.",
+      "type": "object"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "$type",
+    "version",
+    "by",
+    "control",
+    "criterion",
+    "framework",
+    "id"
+  ],
+  "title": "control-mapping",
+  "type": "object"
+}
