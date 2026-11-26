@@ -8,7 +8,7 @@ Legible Records is a small set of conventions for security records that an organ
 - **Portable:** every file names its type and version and says where it came from; bundles carry hashes. Records move with the organization they describe.
 - **Pragmatic:** standard JSON Schema 2020-12 rather than a new schema language, a small subset of it, additive changes, lenses only when unavoidable.
 
-Status: draft. Nothing here is stable yet; expect changes until version 1 is published.
+Status: draft. The specification hasn't had its first release, and anything in it may change until it does. The `version` in a record or schema is its type's version, not the specification's.
 
 ## What's here
 
