@@ -1,0 +1,227 @@
+{
+  "$defs": {
+    "frame": {
+      "description": "A rectangle on the board, by its top left corner and size.",
+      "properties": {
+        "h": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "w": {
+          "minimum": 0,
+          "type": "number"
+        },
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "h",
+        "w",
+        "x",
+        "y"
+      ],
+      "type": "object"
+    },
+    "point": {
+      "description": "A place on the board, in the board's own units, x to the right and y down.",
+      "properties": {
+        "x": {
+          "type": "number"
+        },
+        "y": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "x",
+        "y"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://monorail.tech/schemas/tech.monorail.workshop.brainstorm/v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "description": "What a group came up with in answer to a prompt, and how they grouped and voted on it. An item is one thing someone offered, such as a sticky note. Groups may nest, an item may repeat another, and where things sat on a board is optional - a record without it is complete.",
+  "examples": [
+    {
+      "$type": "tech.monorail.workshop.brainstorm",
+      "groups": [
+        {
+          "id": "suppliers",
+          "title": "Supplier risk"
+        },
+        {
+          "id": "single-source",
+          "parent": "suppliers",
+          "title": "Single source"
+        }
+      ],
+      "held_on": "2026-11-19",
+      "id": "2026-11-risk-concerns",
+      "items": [
+        {
+          "author": "Robin Example",
+          "group": "suppliers",
+          "id": "i1",
+          "text": "Our payment processor has an outage",
+          "votes": 5
+        },
+        {
+          "author": "Casey Example",
+          "group": "single-source",
+          "id": "i2",
+          "text": "Only one vendor makes the scanner",
+          "votes": 3
+        },
+        {
+          "author": "Morgan Example",
+          "duplicate_of": "i2",
+          "group": "single-source",
+          "id": "i3",
+          "text": "The scanner vendor goes under",
+          "votes": 2
+        }
+      ],
+      "organization": "Example Co",
+      "prompt": "What could stop us serving customers for more than a day?",
+      "title": "Risk concerns",
+      "version": 1
+    }
+  ],
+  "properties": {
+    "$type": {
+      "const": "tech.monorail.workshop.brainstorm"
+    },
+    "body": {
+      "description": "Notes, in Markdown.",
+      "type": "string"
+    },
+    "facilitators": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "x-data": [
+        "user.name"
+      ]
+    },
+    "groups": {
+      "description": "The themes the group sorted items into. Empty when nothing was grouped.",
+      "items": {
+        "properties": {
+          "color": {
+            "description": "The group's colour on the board, as",
+            "pattern": "^#[0-9a-f]{6}$",
+            "type": "string"
+          },
+          "frame": {
+            "$ref": "#/$defs/frame",
+            "description": "Where the group sat on the board."
+          },
+          "id": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
+            "description": "Unique in the record."
+          },
+          "parent": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
+            "description": "The id of the group this is a sub-group of. Never a loop."
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "held_on": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/date",
+      "description": "The day the group met, or the first, when it took several."
+    },
+    "id": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
+      "description": "This brainstorm's key, such as 2026-11-risk-concerns, for references like brainstorm:2026-11-risk-concerns."
+    },
+    "items": {
+      "items": {
+        "properties": {
+          "author": {
+            "type": "string",
+            "x-data": [
+              "user.name"
+            ]
+          },
+          "duplicate_of": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
+            "description": "The id of the item this one repeats, which is never itself a duplicate."
+          },
+          "group": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
+            "description": "The id of the item's immediate group. An item with none is ungrouped."
+          },
+          "id": {
+            "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
+            "description": "Unique in the record."
+          },
+          "position": {
+            "$ref": "#/$defs/point",
+            "description": "Where the item sat on the board."
+          },
+          "text": {
+            "type": "string"
+          },
+          "votes": {
+            "description": "Votes for this item alone. Left out when the group didn't vote.",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "text"
+        ],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "organization": {
+      "type": "string"
+    },
+    "produced_by": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/produced_by"
+    },
+    "prompt": {
+      "description": "What the group was asked, as it was put to them.",
+      "type": "string"
+    },
+    "source": {
+      "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/source"
+    },
+    "title": {
+      "type": "string"
+    },
+    "version": {
+      "const": 1
+    }
+  },
+  "required": [
+    "$type",
+    "version",
+    "groups",
+    "id",
+    "items",
+    "organization",
+    "prompt",
+    "title"
+  ],
+  "title": "brainstorm",
+  "type": "object"
+}

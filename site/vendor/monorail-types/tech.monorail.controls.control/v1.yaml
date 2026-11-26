@@ -14,8 +14,6 @@ fields:
   audience?: string -- The people it covers, by name.
   assess_every_months?: integer(1..) -- How long an assessment lasts; 12 when absent.
   due?: date -- When it is meant to be in place.
-  library?: string -- The Monorail library control it was copied from.
-  library_version?: string
   source_fields?: object -- The source's own fields that no field here covers, under the source's names. Readers keep it and don't interpret it. Never a personal value that a field here would label.
   produced_by?: produced_by
   source?: source

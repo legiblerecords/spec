@@ -30,6 +30,7 @@ const groups = [
     heading: "Risk",
     types: ["tech.monorail.risk.appetite", "tech.monorail.risk.study", "tech.monorail.risk.exception"],
   },
+  { heading: "Workshops", types: ["tech.monorail.workshop.brainstorm"] },
 ];
 
 function load(type) {

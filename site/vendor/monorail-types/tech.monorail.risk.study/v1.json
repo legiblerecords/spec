@@ -439,6 +439,11 @@
             },
             "type": "array"
           },
+          "horizon_months": {
+            "description": "The length of that period in months; 12 is a year.",
+            "minimum": 1,
+            "type": "integer"
+          },
           "id": {
             "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
             "description": "Unique in the study."
@@ -476,7 +481,7 @@
             "type": "string"
           },
           "timeframe": {
-            "description": "The period the likelihood and every loss are for, such as the next 12 months.",
+            "description": "The period the likelihood and every loss are for, as it was put to the panel, such as the next 12 months.",
             "type": "string"
           }
         },

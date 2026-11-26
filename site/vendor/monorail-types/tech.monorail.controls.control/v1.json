@@ -39,13 +39,6 @@
       "$ref": "https://legiblerecords.org/schemas/org.legiblerecords.common/v1.json#/$defs/slug",
       "description": "Such as mfa, for references like control:mfa."
     },
-    "library": {
-      "description": "The Monorail library control it was copied from.",
-      "type": "string"
-    },
-    "library_version": {
-      "type": "string"
-    },
     "owner": {
       "description": "The owning role or person, by name.",
       "type": "string"
