@@ -33,10 +33,16 @@ cargo install --git https://github.com/legiblerecords/tools legible
 
 ## JavaScript
 
-`@legiblerecords/legible` is the same code compiled to WebAssembly. It includes the command for Node, with the schema, record and bundle commands but not feeds, and it can encrypt bundles with [age](https://age-encryption.org) itself. It isn't published to npm yet.
+`@legiblerecords/legible` is the same code compiled to WebAssembly. It includes the command for Node, with the schema, record and bundle commands but not feeds, and it can encrypt bundles with [age](https://age-encryption.org) itself. It's [on npm](https://www.npmjs.com/package/@legiblerecords/legible), and needs Node 20 or later:
 
 ```sh
-npx @legiblerecords/legible@0.1.0 --help
+npm install @legiblerecords/legible
+```
+
+Or run the command without installing it:
+
+```sh
+npx @legiblerecords/legible --help
 ```
 
 Or use it as a library:
