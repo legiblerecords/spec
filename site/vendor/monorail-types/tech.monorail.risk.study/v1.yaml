@@ -21,7 +21,8 @@ fields:
       fields:
         id: slug -- Unique in the study.
         statement: string -- The event being forecast, stated so it can be scored later.
-        timeframe: string -- The period the likelihood and every loss are for, such as the next 12 months.
+        timeframe: string -- The period the likelihood and every loss are for, as it was put to the panel, such as the next 12 months.
+        horizon_months?: integer(1..) -- The length of that period in months; 12 is a year.
         likelihood_kind: known(probability, frequency) -- probability is the chance of at least one event in the timeframe, from 0 to 1; frequency is events per timeframe, which may exceed 1.
         briefing?: string -- What the panel was given before estimating, in plain text.
         likelihood_question?: string -- The question put to the panel about likelihood, when it wasn't the usual one.

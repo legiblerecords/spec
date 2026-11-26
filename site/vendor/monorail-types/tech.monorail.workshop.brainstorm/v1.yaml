@@ -1,0 +1,61 @@
+type: tech.monorail.workshop.brainstorm
+version: 1
+title: brainstorm
+description: What a group came up with in answer to a prompt, and how they grouped and voted on it. An item is one thing someone offered, such as a sticky note. Groups may nest, an item may repeat another, and where things sat on a board is optional - a record without it is complete.
+fields:
+  id: slug -- This brainstorm's key, such as 2026-11-risk-concerns, for references like brainstorm:2026-11-risk-concerns.
+  title: string
+  organization: string
+  prompt: string -- What the group was asked, as it was put to them.
+  held_on?: date -- The day the group met, or the first, when it took several.
+  facilitators?: string[] @user.name
+  groups:
+    description: The themes the group sorted items into. Empty when nothing was grouped.
+    items:
+      fields:
+        id: slug -- Unique in the record.
+        title: string
+        parent?: slug -- The id of the group this is a sub-group of. Never a loop.
+        frame?: brainstorm.frame -- Where the group sat on the board.
+        color?: /^#[0-9a-f]{6}$/ -- The group's colour on the board, as #rrggbb in lowercase.
+  items:
+    items:
+      fields:
+        id: slug -- Unique in the record.
+        text: string
+        author?: string @user.name
+        votes?: integer(0..) -- Votes for this item alone. Left out when the group didn't vote.
+        group?: slug -- The id of the item's immediate group. An item with none is ungrouped.
+        duplicate_of?: slug -- The id of the item this one repeats, which is never itself a duplicate.
+        position?: brainstorm.point -- Where the item sat on the board.
+  body?: string -- Notes, in Markdown.
+  produced_by?: produced_by
+  source?: source
+defs:
+  point:
+    description: A place on the board, in the board's own units, x to the right and y down.
+    fields:
+      x: number
+      y: number
+  frame:
+    description: A rectangle on the board, by its top left corner and size.
+    fields:
+      x: number
+      y: number
+      w: number(0..)
+      h: number(0..)
+examples:
+  - $type: tech.monorail.workshop.brainstorm
+    version: 1
+    id: 2026-11-risk-concerns
+    title: Risk concerns
+    organization: Example Co
+    prompt: What could stop us serving customers for more than a day?
+    held_on: 2026-11-19
+    groups:
+      - { id: suppliers, title: Supplier risk }
+      - { id: single-source, title: Single source, parent: suppliers }
+    items:
+      - { id: i1, text: Our payment processor has an outage, author: Robin Example, votes: 5, group: suppliers }
+      - { id: i2, text: Only one vendor makes the scanner, author: Casey Example, votes: 3, group: single-source }
+      - { id: i3, text: The scanner vendor goes under, author: Morgan Example, votes: 2, group: single-source, duplicate_of: i2 }

@@ -7,7 +7,7 @@ fields:
   control: ref(control)
   framework: known(soc2, iso27001, nist-csf)
   criterion: string -- The framework's own id, exactly, such as CC6.1 or PR.AA-03. Never the criterion's text.
-  by: known(auditor, library, monorail, organization) -- Who made the mapping.
+  by: known(auditor, organization) -- Who made the mapping.
   note?: string
   source_fields?: object -- The source's own fields that no field here covers, under the source's names. Readers keep it and don't interpret it. Never a personal value that a field here would label.
   produced_by?: produced_by
@@ -19,4 +19,4 @@ examples:
     control: control:mfa
     framework: soc2
     criterion: CC6.1
-    by: library
+    by: organization

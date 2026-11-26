@@ -5,7 +5,7 @@
   "examples": [
     {
       "$type": "tech.monorail.controls.mapping",
-      "by": "library",
+      "by": "organization",
       "control": "control:mfa",
       "criterion": "CC6.1",
       "framework": "soc2",
@@ -21,8 +21,6 @@
       "description": "Who made the mapping.",
       "examples": [
         "auditor",
-        "library",
-        "monorail",
         "organization"
       ],
       "type": "string"
