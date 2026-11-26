@@ -11,7 +11,7 @@ A Legible Record says what it is, where it came from and how sensitive its field
 - **Portable.** Every file names its type and version and says where it came from. Bundles carry hashes. Records move with the organization they describe.
 - **Pragmatic.** Standard JSON Schema 2020-12, a small subset of it, additive changes, and lenses only when unavoidable.
 
-> Status: draft. Nothing is stable until version 1 is published.
+> Status: draft. The specification hasn't had its first release, and anything in it may change until it does. The `version` in a record is its type's version, not the specification's.
 
 ## A record
 
@@ -19,16 +19,16 @@ A record is one JSON object in a UTF-8 `.json` file. `$type` and `version` are r
 
 ```json
 {
-  "$type": "tech.monorail.risk.appetite",
+  "$type": "tech.monorail.it.device",
   "version": 1,
-  "produced_by": { "app": "tolerance.monorail.tools", "build": "1.2.0" },
-  "organization": "Example Co",
-  "currency": "USD",
-  "decided_at": "2026-11-18",
-  "thresholds": [
-    { "level": "serious", "label": "A major setback", "loss": 2000000, "one_in_years": 25 },
-    { "level": "existential", "label": "Company-ending", "loss": 8000000, "one_in_years": 200 }
-  ]
+  "source": { "system": "iru", "as_of": "2026-11-23T18:20:00Z" },
+  "id": "c02xk1abcd",
+  "name": "Ana's MacBook Pro",
+  "platform": "macos",
+  "os_version": "15.1.1",
+  "person_match": { "emails": ["ana@acme.example"] },
+  "checks": { "disk_encryption": "on", "firewall": "on", "screen_lock": "on", "os_supported": true },
+  "last_seen": "2026-11-23T18:20:00Z"
 }
 ```
 
