@@ -25,17 +25,6 @@ export default function (eleventyConfig) {
     }
   });
 
-  // Monorail's data taxonomy, beside its page: each version's file, and the notice and
-  // licence that credit Fideslang, so the credit is served wherever the file is.
-  eleventyConfig.on("eleventy.after", ({ dir }) => {
-    const from = "vendor/monorail-taxonomy";
-    const to = join(dir.output, "monorail-data-taxonomy");
-    mkdirSync(to, { recursive: true });
-    for (const file of readdirSync(from).filter((f) => /^v\d+\.json$/.test(f) || f === "NOTICE.md" || f === "LICENSE")) {
-      // The notice is served as .txt: on this site a .md path is a page's Markdown copy.
-      copyFileSync(join(from, file), join(to, file === "NOTICE.md" ? "NOTICE.txt" : file));
-    }
-  });
 
   eleventyConfig.addFilter("markdownUrl", markdownUrl);
 
