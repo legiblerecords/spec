@@ -26,7 +26,10 @@ const groups = [
       "tech.monorail.vulnerabilities.sla",
     ],
   },
-  { heading: "Risk", types: ["tech.monorail.risk.appetite", "tech.monorail.risk.exception"] },
+  {
+    heading: "Risk",
+    types: ["tech.monorail.risk.appetite", "tech.monorail.risk.study", "tech.monorail.risk.exception"],
+  },
 ];
 
 function load(type) {
@@ -38,10 +41,11 @@ function load(type) {
     .sort((a, b) => a - b);
   const version = versions.at(-1);
   const schema = JSON.parse(readFileSync(join(dir, `v${version}.json`), "utf8"));
-  // Only the fields: the page shows the type, title and description above the block, and the
-  // examples below it, as JSON.
+  // Only the fields and the type's own definitions, which its fields name as <title>.<name>:
+  // the page shows the type, title and description above the block, and the examples below
+  // it, as JSON.
   const text = readFileSync(join(dir, `v${version}.yaml`), "utf8");
-  const yaml = (text.match(/^fields:\n(?:(?: .*)?\n)*/m) || [""])[0];
+  const yaml = (text.match(/^(?:fields|defs):\n(?:(?: .*)?\n)*/gm) || []).join("");
   return { type, version, schema, yaml };
 }
 

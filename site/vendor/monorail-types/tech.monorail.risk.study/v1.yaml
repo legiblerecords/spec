@@ -1,0 +1,137 @@
+type: tech.monorail.risk.study
+version: 1
+title: risk-study
+description: A panel's estimates of risk scenarios, pooled by simple averaging - the output of a group risk analysis. Each expert answers each statement with three-point estimates of its likelihood and its impact, each a 90% interval - a lowest reasonable value (5th percentile), a typical value (50th) and a highest reasonable value (95th). The panel is pooled percentile by percentile, by mean and by median. A statement may also carry loss curves simulated from the pooled estimates. Estimates are kept as entered; readers flag a range out of order rather than reject it.
+fields:
+  id: slug -- This study's key, such as 2026-11-workshop, for references like risk-study:2026-11-workshop.
+  title: string
+  organization: string
+  currency: /^[A-Z]{3}$/ -- ISO 4217 code for every impact and loss in this record.
+  held_on?: date -- The day the panel answered, or the first, when it took several.
+  facilitators?: string[] @user.name
+  experts:
+    description: The panel, whose estimates are pooled.
+    items:
+      fields:
+        id: slug -- Unique in the study; estimates name the expert by it.
+        name: string @user.name
+        role?: string -- Discipline, team, or why they are on the panel.
+  statements:
+    items:
+      fields:
+        id: slug -- Unique in the study.
+        statement: string -- The event being forecast, stated so it can be scored later.
+        timeframe: string -- The period the likelihood and every loss are for, such as the next 12 months.
+        likelihood_kind: known(probability, frequency) -- probability is the chance of at least one event in the timeframe, from 0 to 1; frequency is events per timeframe, which may exceed 1.
+        briefing?: string -- What the panel was given before estimating, in plain text.
+        likelihood_question?: string -- The question put to the panel about likelihood, when it wasn't the usual one.
+        impact_question?: string -- The question put to the panel about impact, when it wasn't the usual one.
+        estimates:
+          description: At most one per expert. An expert with none didn't answer. A part left out wasn't answered completely.
+          items:
+            fields:
+              expert: slug -- An id from experts.
+              likelihood?: risk-study.range
+              impact?: risk-study.range -- In the record's currency.
+              likelihood_note?: string -- The expert's reasoning about likelihood.
+              impact_note?: string -- The expert's reasoning about impact.
+              rationale?: string -- The expert's reasoning about the statement as a whole.
+              entered_by?: string @user.name -- The facilitator who entered it for the expert, such as from paper.
+        panel?:
+          description: The panel's estimates pooled, from every expert's complete answer.
+          fields:
+            likelihood?: risk-study.pooled
+            impact?: risk-study.pooled
+        curves?:
+          description: Loss curves simulated from pooled estimates, by Monte Carlo - beyond the averaging method itself.
+          items: risk-study.curve
+  body?: string -- Notes, in Markdown.
+  source_fields?: object -- The source's own fields that no field here covers, under the source's names. Readers keep it and don't interpret it. Never a personal value that a field here would label.
+  produced_by?: produced_by
+  source?: source
+defs:
+  range:
+    description: A 90% interval as three percentiles.
+    fields:
+      p05: number -- The lowest reasonable value, the 5th percentile.
+      p50: number -- The typical value, the 50th percentile.
+      p95: number -- The highest reasonable value, the 95th percentile.
+  pooled:
+    description: Complete estimates of one part, pooled percentile by percentile.
+    fields:
+      n: integer(1..) -- How many estimates were pooled.
+      mean: risk-study.range
+      median: risk-study.range
+  fit:
+    description: A lognormal fitted to a range as this record holds it, so a probability's fit is of the value from 0 to 1, as the mean and standard deviation of the underlying normal.
+    fields:
+      mu: number
+      sigma: number(0..)
+  curve:
+    description: One simulated loss curve. Each period draws its events from the likelihood, and a loss from the impact for each event.
+    fields:
+      label?: string
+      likelihood_pooling: known(mean, median) -- Which of the panel's pooled likelihoods was simulated.
+      impact_pooling: known(mean, median) -- Which of the panel's pooled impacts was simulated.
+      likelihood: risk-study.range -- The range simulated.
+      impact: risk-study.range -- The range simulated.
+      likelihood_fit: risk-study.fit
+      impact_fit: risk-study.fit
+      trials: integer(1..) -- How many periods were simulated.
+      seed?: integer
+      generator?: known(mulberry32) -- The random number generator that seed is for.
+      probability_of_loss: number(0..1) -- The share of periods with at least one event.
+      expected_loss: number(0..) -- The mean loss per period, periods without a loss included.
+      loss_percentiles:
+        description: The loss per period at each percentile of the simulated periods.
+        fields:
+          p50: number(0..)
+          p90: number(0..)
+          p95: number(0..)
+          p99: number(0..)
+          max: number(0..)
+      exceedance_counts?:
+        description: Exactly how many periods had a loss at least this large, counted from every period. Rare losses are read from these, not from points.
+        items:
+          fields:
+            loss: number(0..)
+            periods: integer(0..)
+      points?:
+        description: The curve as drawn, ascending in loss.
+        items:
+          fields:
+            loss: number(0..)
+            probability: number(0..1) -- The share of periods with a loss at least this large.
+      clamped_share?: number(0..1) -- The share of probability draws clamped into 0 to 1.
+examples:
+  - $type: tech.monorail.risk.study
+    version: 1
+    id: 2026-11-workshop
+    title: Quantified risk workshop
+    organization: Example Co
+    currency: USD
+    held_on: 2026-11-19
+    experts:
+      - { id: e1, name: Robin Example, role: Engineering }
+      - { id: e2, name: Casey Example, role: Finance }
+    statements:
+      - id: s1
+        statement: A ransomware attack stops order processing for more than a day.
+        timeframe: the next 12 months
+        likelihood_kind: probability
+        estimates:
+          - expert: e1
+            likelihood: { p05: 0.02, p50: 0.08, p95: 0.25 }
+            impact: { p05: 50000, p50: 400000, p95: 3000000 }
+          - expert: e2
+            likelihood: { p05: 0.01, p50: 0.05, p95: 0.2 }
+            impact: { p05: 100000, p50: 600000, p95: 5000000 }
+        panel:
+          likelihood:
+            n: 2
+            mean: { p05: 0.015, p50: 0.065, p95: 0.225 }
+            median: { p05: 0.015, p50: 0.065, p95: 0.225 }
+          impact:
+            n: 2
+            mean: { p05: 75000, p50: 500000, p95: 4000000 }
+            median: { p05: 75000, p50: 500000, p95: 4000000 }
