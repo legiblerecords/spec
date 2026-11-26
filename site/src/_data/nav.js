@@ -29,11 +29,8 @@ export default [
     ],
   },
   {
-    heading: "Published types",
-    pages: [
-      { title: "Monorail", url: "/monorail-types/" },
-      { title: "Monorail data taxonomy", url: "/monorail-data-taxonomy/" },
-    ],
+    heading: "Who uses it",
+    pages: [{ title: "Organizations", url: "/who-uses-it/" }],
   },
   {
     heading: "Reference",
