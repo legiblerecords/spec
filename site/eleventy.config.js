@@ -13,6 +13,7 @@ export default function (eleventyConfig) {
   // Headings get ids from their text, such as #content-lines, so pages can link to sections.
   eleventyConfig.addPlugin(IdAttributePlugin);
   eleventyConfig.addPassthroughCopy({ "src/css": "css" });
+  eleventyConfig.addPassthroughCopy({ "src/icons": "/" });
 
   // The repository's schemas, at the paths their $ids name:
   // ../schemas/<type>/v<n>.json is served at /schemas/<type>/v<n>.json.

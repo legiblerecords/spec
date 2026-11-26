@@ -14,6 +14,7 @@ It is built with [Eleventy](https://www.11ty.dev): Markdown pages, one layout, a
 | `src/_data/nav.js` | The sidebar, in reading order; previous and next links follow it |
 | `src/_includes/base.njk` | The layout every page uses |
 | `src/css/site.css` | All the styles, black on white |
+| `src/icons/` | The favicon, `{ }` in Atkinson Hyperlegible Mono Bold, and the 180 px home-screen icon; both served at the site's root |
 | `eleventy.config.js` | Eleventy's settings |
 | `src/_data/spec.js` | Builds a page under `/spec/` from each file in `../spec/` |
 | `scripts/check-links.mjs` | Checks that every page and `#section` a link names exists, and that every schema in `../schemas/` is served at its `$id` |
