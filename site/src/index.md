@@ -13,6 +13,12 @@ A Legible Record says what it is, where it came from and how sensitive its field
 
 > Status: draft. The specification hasn't had its first release, and anything in it may change until it does. The `version` in a record is its type's version, not the specification's.
 
+## Tools
+
+`legible` is the command-line tool for working with records. It validates records against their types, packs them into bundles, signs and verifies bundles, and publishes and pulls feeds. It's one static binary for Linux, macOS and Windows: see [Install](/install/), and the [CLI reference](/cli/) for every command.
+
+The [legible-records skill](/install/#for-agents) teaches an AI agent to do the same work with `legible`: turn an export into records, then pack, check and hand over a bundle.
+
 ## A record
 
 A record is one JSON object in a UTF-8 `.json` file. `$type` and `version` are required. Everything else belongs to the type.
