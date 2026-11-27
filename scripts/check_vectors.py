@@ -165,10 +165,11 @@ RULE_IN_SHORT = re.compile(r"^(\s*)rules:[ \t]*\n(?:\1[ \t]*- \S.*\n)+", re.M)
 
 def objects_in_order(value, pointer=""):
     """Every object in a record, by JSON pointer, in document order: an object before the ones
-    inside it, those in the order they appear."""
+    inside it, an object's members in property name order (by code point), a list's items in
+    index order."""
     if isinstance(value, dict):
         yield pointer
-        items = value.items()
+        items = sorted(value.items())
     elif isinstance(value, list):
         items = enumerate(value)
     else:
