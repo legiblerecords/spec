@@ -1,6 +1,6 @@
 # Schema language
 
-Status: draft. Vectors: [vectors/schema-language.json](../vectors/schema-language.json) and [vectors/schema-language-published.json](../vectors/schema-language-published.json).
+Status: draft. Vectors: [vectors/schema-language.json](../vectors/schema-language.json) and [vectors/schema-language-published.json](../vectors/schema-language-published.json); for checking records against rules, [vectors/rules.json](../vectors/rules.json).
 
 Legible Records types are JSON Schema 2020-12. They are written in a short form: a document in [restricted YAML](restricted-yaml.md) that expands to a JSON Schema body, and that a tool can generate back from that body. Readers and validators only need the expanded JSON Schema; the short form is for writing and reviewing.
 
@@ -243,6 +243,12 @@ So the second and third rules of the example expand to:
     "then": { "required": ["revoked_on"] } }
 ]
 ```
+
+### Checking a record
+
+A record is checked against each rule member, on each object in the record that the member applies to: the record itself for the document's rules, a field's value for a field mapping's, each item of a list for an `items` mapping's, and each value that refers to an entry in `defs` for that entry's. A standard shape is checked by its keywords, and an own shape by its text. A rule that doesn't hold is one failure, reported as the rule's and not as the keywords that failed inside it, with the JSON pointer of the object the rule sits on (`""` for the record, `/approvals/1` for a rule on the second item of `approvals`) and a message. A rule whose message names a value, `unique` or `within`, fails once for each such value, in the order the values first appear.
+
+Failures are ordered by pointer, in document order (an object before the objects inside it, and those in the order they appear), then by the order of the rules on one object. [vectors/rules.json](../vectors/rules.json) fixes the messages.
 
 ### Problems with rules
 
