@@ -80,7 +80,7 @@ Each system name means one kind of id, so two publishers describing the same thi
 { "emails": ["ana@acme.example"], "identifiers": [{ "system": "okta", "id": "00u1ab2cd3" }], "name": "Ana Lima" }
 ```
 
-- It has `emails` or `identifiers`, or both.
+- It has `emails` or `identifiers`, or both. An empty list counts as none.
 - A reader matches identifiers first. Only when no identifier matches anyone does it compare emails, case-insensitively.
 - A match to no one, or to more than one person, is left unresolved and shown to a person. A reader never chooses between candidates.
 - `name` is for the people resolving a match. It is never matched on.

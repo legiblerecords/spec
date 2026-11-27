@@ -60,3 +60,5 @@ defs:
       emails?: email[] -- Compared case-insensitively.
       identifiers?: identifier[] -- The person's ids in other systems, matched before emails.
       name?: string -- For people to read when resolving a match; never matched on.
+    rules:
+      - any_of(emails, identifiers)
