@@ -49,6 +49,7 @@ A mapping with these keys, all optional. Any other key is a problem.
 | `version` | an integer, 1 or more | see [§ Published types](#published-types) |
 | `title`, `description` | a string | the same keyword |
 | `fields` | a mapping of fields | `"type": "object"`, `properties`, `required` |
+| `rules` | a list of rules; only next to `fields` | `allOf` ([§ Rules](#rules)) |
 | `defs` | a mapping of field values | `$defs` |
 | `examples` | a list of mappings | `examples` |
 | `json` | a mapping | merged into the body |
@@ -70,6 +71,7 @@ A mapping has these keys, all optional:
 | `description` | a string | `description` |
 | `type` | a type expression; next to `fields`, only `object?` | the expression; `object?` gives `"type": ["object", "null"]` |
 | `fields` | a mapping of fields | as at the top level |
+| `rules` | a list of rules; only next to `fields` | `allOf` ([§ Rules](#rules)) |
 | `items` | a field value | `"type": "array"`, `items` |
 | `examples` | a list | `examples` |
 | `json` | a mapping | merged into the property |
@@ -107,6 +109,159 @@ Spaces may separate tokens, but may not come before `[]`, `?` or `(`.
 
 Parentheses, `[]` and `?` together nest at most 32 deep.
 
+## Rules
+
+A rule is a statement about one object that relates two or more of its fields, or the items of one of its lists. `rules` holds a list of rules, each a string, on anything that has `fields`: the document, a field mapping, an `items` mapping, and an entry in `defs`. A rule's field names are the property names of the object it sits on, without the `?`. A rule on an `items` mapping holds for each item.
+
+```yaml
+fields:
+  status: known(active, revoked)
+  subjects?: string[]
+  subject_refs?: externalRef[]
+  at?: datetime
+  on?: date
+  revoked_on?: date
+  approvals?:
+    items:
+      fields:
+        name: string
+        at?: datetime
+        on?: date
+      rules:
+        - one_of(at, on)
+rules:
+  - one_of(at, on)
+  - any_of(subjects, subject_refs)
+  - requires(status = revoked, revoked_on)
+  - requires(revoked_on, status = revoked)
+```
+
+In a published type, `$type` and `version` aren't fields a rule can name.
+
+```
+rule      = "one_of(" field ("," field)+ ")" | "any_of(" field ("," field)+ ")"
+          | "at_most_one(" field "," field ")"
+          | "requires(" condition "," condition ")"
+          | "before(" field "," field ")" | "not_after(" field "," field ")"
+          | "ascending(" field "," key ")" | "unique(" field "," key ")"
+          | "within(" path "," path ")"
+condition = "not" condition | field "=" value | field "in" "(" value ("," value)* ")"
+          | "any_of(" field ("," field)+ ")" | field
+key       = field ("." field)*
+path      = step ("." step)*
+step      = field ["[]"]
+field     = [A-Za-z_][A-Za-z0-9_-]*
+```
+
+Spaces may separate tokens, but may not come before `(` after a shape's name, or before `[]`. `not` and `in` are separated from what follows them by a space. A `value` is read as `enum`'s values are ([§ Type expressions](#type-expressions)), and ends at a `,` or `)` outside double quotes.
+
+A rule's **text** is the rule with single spaces: none just inside parentheses, `, ` between arguments, ` = ` around `=`, and one space on each side of `in` and after `not`. `requires(kind in (service,shared),  owner)` has the text `requires(kind in (service, shared), owner)`.
+
+### The shapes
+
+A rule takes one of eight shapes. Four are **standard shapes**, which expand to JSON Schema keywords:
+
+| Shape | Holds when |
+|---|---|
+| `one_of(a, b, …)` | exactly one of the fields is given |
+| `at_most_one(a, b)` | not both are given |
+| `any_of(a, b, …)` | at least one is given |
+| `requires(<when>, <then>)` | whenever `<when>` holds, `<then>` holds |
+
+`<when>` and `<then>` are **conditions**:
+
+| Condition | Holds when |
+|---|---|
+| `a` | the field is given |
+| `a = v` | the field is given and equals `v` |
+| `a in (v, w, …)` | the field is given and is one of them |
+| `not <condition>` | the condition doesn't hold |
+| `any_of(a, b, …)` | at least one is given |
+
+`requires` is the only shape that takes another shape inside it, and only `any_of`.
+
+The other four are **own shapes**, which have no JSON Schema form:
+
+| Shape | Holds when |
+|---|---|
+| `before(a, b)` | `a` is less than `b`, or either isn't given |
+| `not_after(a, b)` | `a` is less than or equal to `b`, or either isn't given |
+| `ascending(list, key)` | each item's `key` is greater than the one before it. An item without the key breaks it |
+| `unique(list, key)` | no two items have the same `key`. Items without the key are skipped |
+| `within(path, path)` | every value at the first path is among the values at the second |
+
+`before` and `not_after` are one shape, with and without equality.
+
+- `before`, `not_after` and `ascending` compare numbers as numbers, dates as dates and datetimes as moments. A field's kind is read from its type expression, by name, with nothing looked up: `integer` and `number`, with or without a range, are numbers; `date` is a date; `datetime` is a datetime. A value that doesn't parse as its field's kind breaks the rule.
+- `list` is a field holding a list. `key` is a field of its items, or a dotted path into them.
+- In `within`, a path steps into a list's items with `[]`: `within(statements[].estimates[].expert, experts[].id)`.
+
+### Given
+
+A field is **given** when its key is present and its value isn't an empty list or, for a field whose type is a plain string, an empty string.
+
+A field's type is read from its type expression, in a string or in a mapping's `type`; `json` doesn't change it. It is a list when the expression ends in `[]` or the field is a mapping with `items`. It is a plain string when the expression is `string` or `/<regex>/`. Every other type, such as `string(<format>)`, `known(…)`, `enum(…)`, `ref(…)` or a name such as `date`, is given when its key is present.
+
+### Expansion
+
+Rules expand to an `allOf` list on their object, one **rule member** per rule, in the order written, and nothing else goes in that list. On the document the object is the body; on a field mapping, the property; on an `items` mapping, `items`; on an entry in `defs`, that entry. Every member carries the rule's text in `x-rule`. A standard shape's member also carries its keywords:
+
+| Rule | Member, beside `"x-rule"` |
+|---|---|
+| `one_of(a, b, …)` | `"oneOf": [G(a), G(b), …]` |
+| `at_most_one(a, b)` | `"not": {"allOf": [G(a), G(b)]}` |
+| `any_of(a, b, …)` | `"anyOf": [G(a), G(b), …]` |
+| `requires(W, T)` | `"if": C(W), "then": C(T)` |
+| an own shape | nothing |
+
+`G(a)`, given, depends on the field's type ([§ Given](#given)):
+
+- a list: `{"required": ["a"], "properties": {"a": {"minItems": 1}}}`
+- a plain string: `{"required": ["a"], "properties": {"a": {"minLength": 1}}}`
+- anything else: `{"required": ["a"]}`
+
+`C(condition)`:
+
+- `a`: `G(a)`
+- `a = v`: `{"required": ["a"], "properties": {"a": {"const": v}}}`
+- `a in (v, w, …)`: `{"required": ["a"], "properties": {"a": {"enum": [v, w, …]}}}`
+- `not X`: `{"not": C(X)}`
+- `any_of(a, b, …)`: `{"anyOf": [G(a), G(b), …]}`
+
+So the second and third rules of the example expand to:
+
+```json
+"allOf": [
+  { "x-rule": "any_of(subjects, subject_refs)",
+    "anyOf": [
+      { "required": ["subjects"], "properties": { "subjects": { "minItems": 1 } } },
+      { "required": ["subject_refs"], "properties": { "subject_refs": { "minItems": 1 } } } ] },
+  { "x-rule": "requires(status = revoked, revoked_on)",
+    "if": { "required": ["status"], "properties": { "status": { "const": "revoked" } } },
+    "then": { "required": ["revoked_on"] } }
+]
+```
+
+### Problems with rules
+
+Each of these is a problem ([§ Problems](#problems)):
+
+- `rules` without `fields` beside it (`rules without fields`), or on an object that may be null, one whose `type` is `object?` (`rules on an object that may be null`). The path is the `rules` key.
+- `rules` that isn't a list of strings.
+- `json` setting `allOf` on an object that has `rules` (`json sets allOf beside rules`). The path is the `allOf` key under `json`.
+
+Each of these is a problem with one rule. Its path is the rule's position in the list (`rules[0]`), and its message ends with `` in `<rule>` ``, the rule as written.
+
+- A rule that doesn't fit the grammar (`bad rule`).
+- An unknown shape (`unknown shape <name>`).
+- A shape with the wrong number of arguments, such as `at_most_one(a, b, c)` (`at_most_one takes two fields`).
+- A shape other than `any_of` inside `requires` (`requires takes only any_of inside it`).
+- A field the object doesn't have, or a step of a key or path that isn't a field where it points (`no field <name>`).
+- A field whose value may be null (`<name> is nullable`).
+- A field compared by `before` or `not_after`, or an `ascending` key, that isn't a number, date or datetime (`before needs numbers, dates or datetimes: <name> is <type expression>`), or two fields of different kinds (`before compares a date with a datetime`, the kinds in the order of the arguments).
+- A `list` that isn't a list, or a `[]` step on a field that isn't a list.
+- A rule whose text is the same as an earlier rule's on the same object (`rule written twice`), at the later one.
+
 ## Published types
 
 A document with `type` is a published type: a Legible Records type that others will read and write.
@@ -122,7 +277,7 @@ They expand to:
 - two properties ahead of the document's own: `"$type": {"const": "<type>"}` and `"version": {"const": <version>}`;
 - `"$type"` and `"version"` at the front of `required`.
 
-A field named `$type` or `version` in a published type is a problem.
+A field named `$type` or `version` in a published type is a problem. Neither is a field a rule can name ([§ Rules](#rules)).
 
 A published type's `title`, when it is a word without dots (a letter or `_`, then letters, digits, `_` and `-`), also names the schema itself: `risk-study.range` in a type titled `risk-study` is `{"$ref": "#/$defs/range"}`, whatever name the schema was expanded under. So a type refers to its own definitions the same way in any file, and generation writes them that way. A type titled `common` therefore takes bare names such as `date` as its own definitions, which is how `org.legiblerecords.common` refers to itself.
 
@@ -141,18 +296,19 @@ The vectors fix messages for the cases they cover. An implementation may word ot
 
 ## Normal form
 
-`normalize(body)` is `body` with `required` lists of strings sorted, `additionalProperties: true` removed, and `$schema` set when missing. The first two apply to the body, and recursively to the members of `properties`, `$defs` and `anyOf`, and to `items`. Other keywords are unchanged.
+`normalize(body)` is `body` with `required` lists of strings sorted, `additionalProperties: true` removed, and `$schema` set when missing. The first two apply to the body, and recursively to the members of `properties`, `$defs` and `anyOf`, and to `items`. Other keywords are unchanged: rule members ([§ Rules](#rules)), and the rest of `allOf`, are left as they are, in order.
 
 ## Generation
 
 `generate(body, name)` writes the short form of `normalize(body)`, with the same options as expansion. Expanding the result with those options gives `normalize(body)` back, when it fits within restricted YAML's 64 KiB and 32 levels.
 
-- Document keys in the order `type`, `version`, `title`, `description`, `fields`, `defs`, `examples`, `json`. `$schema` is left out when it is the 2020-12 URL.
+- Document keys in the order `type`, `version`, `title`, `description`, `fields`, `rules`, `defs`, `examples`, `json`. `$schema` is left out when it is the 2020-12 URL.
 - A body is written as a published type when it has `$id`, `properties.$type.const` and `properties.version.const` that agree with each other; `type` and `version` come from the consts, and the two properties, their `required` entries and `$id` aren't written again.
 - `fields` when the body's `type` is `object` and every property has a short form. Required fields first, then optional ones, each in alphabetical order. `defs` in alphabetical order.
-- Each property takes the first of these that expands back to it exactly: a type expression (with ` -- ` and a one-line description); a mapping with `type`; one with `fields`; one with `type` and `json` for the keywords that have no expression syntax; one with `items`; one with only `json`. `description` and `examples` go in the mapping's own keys.
+- An object written with `fields` that has `allOf` takes `rules` when every entry is exactly what its `x-rule` expands to against those fields ([§ Expansion](#expansion)), `x-rule` included: a line per entry, in order, each the entry's `x-rule`. Any other `allOf` has no short form and goes whole under `json`, so a list that mixes rule members with other entries expands back to itself.
+- Each property takes the first of these that expands back to it exactly: a type expression (with ` -- ` and a one-line description); a mapping with `type`; one with `fields` (and `rules`); one with `type` and `json` for the keywords that have no expression syntax; one with `items`; one with only `json`. `description` and `examples` go in the mapping's own keys.
 - In a published type, a property that is exactly `{"type": "string", "examples": [<strings>]}`, or the same with `"type": ["string", "null"]`, is written `known(…)` or `known(…)?`. In any other schema it is written as a mapping with `examples`, so generating an existing schema doesn't change.
-- Field mapping keys in the order `description`, `type`, `fields`, `items`, `examples`, `json`. `json`, and anything under it, in alphabetical order.
+- Field mapping keys in the order `description`, `type`, `fields`, `rules`, `items`, `examples`, `json`. `json`, and anything under it, in alphabetical order.
 - Each row of `examples` in `fields` order, then other keys in alphabetical order.
 - A name `common.<word>` is written `<word>`, unless the word contains `.` or is a primitive, `ref`, `enum` or `known`.
 - Non-empty lists of scalars are written in flow style. Strings are quoted only where restricted YAML needs it.

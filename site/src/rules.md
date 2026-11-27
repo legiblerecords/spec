@@ -7,8 +7,10 @@ lede: These rules keep records written today readable by tools written later, an
 
 A published type's expanded schema doesn't use:
 
-- `if`, `then`, `else`, `not`, `dependentSchemas` or `dependentRequired`;
-- `oneOf`, or `anyOf` other than for a value that may be null;
+- `else`, `dependentSchemas` or `dependentRequired`;
+- `if`, `then`, `not` or `oneOf`, other than inside a rule member: an `allOf` entry that is exactly what its `x-rule` expands to ([schema language § Rules](/spec/schema-language/#rules));
+- `anyOf`, other than inside a rule member or for a value that may be null;
+- `allOf`, other than to hold rule members;
 - `additionalProperties: false`, at any level: readers must accept fields they don't know.
 
 A type with variants uses an explicit `kind` field, with optional fields for each kind. Use `enum` only for a set that will never grow, and `known(…)` for everything else.
@@ -31,9 +33,10 @@ Within a major version, a new schema may only:
 - add an optional field;
 - add a value to a `known(…)` list;
 - relax a constraint: a wider range, a longer maximum, allowing null;
+- remove a rule;
 - change descriptions and examples.
 
-Anything else needs a new major version: removing or renaming a field, making a field required, narrowing a range, changing a field's type, or turning a `known(…)` list into an `enum`. A change in what a field *means* is a new type.
+Anything else needs a new major version: removing or renaming a field, making a field required, narrowing a range, changing a field's type, adding a rule, or turning a `known(…)` list into an `enum`. A change in what a field *means* is a new type.
 
 ```sh
 legible check-compat control-v1-old.json control-v1-new.json

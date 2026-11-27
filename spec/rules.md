@@ -8,9 +8,13 @@ These rules keep records written today readable by tools written later, and the 
 
 A published type's expanded schema doesn't use:
 
-- `if`, `then`, `else`, `not`, `dependentSchemas` or `dependentRequired`;
-- `oneOf`, or `anyOf` other than for a value that may be null;
+- `else`, `dependentSchemas` or `dependentRequired`;
+- `if`, `then`, `not` or `oneOf`, other than inside a rule member;
+- `anyOf`, other than inside a rule member or for a value that may be null;
+- `allOf`, other than to hold rule members, and then it holds nothing else;
 - `additionalProperties: false`, at any level: readers must accept fields they don't know.
+
+A **rule member** is an entry of an `allOf` list that has an `x-rule` and is exactly what that rule expands to ([schema language § Rules](schema-language.md#rules)): its other keywords are the rule's expansion and nothing more. Checking the subset includes checking each rule member against its rule.
 
 A type with variants uses an explicit `kind` field, with optional fields for each kind, rather than `oneOf`.
 
@@ -30,9 +34,12 @@ Within a major version, a new schema may only:
 - add an optional field;
 - add a value to a `known(…)` list;
 - relax a constraint: a wider range, a longer maximum, allowing null;
+- remove a rule;
 - change descriptions and examples.
 
-Anything else needs a new major version: removing or renaming a field, making a field required, narrowing a range, changing a field's type, or turning a `known(…)` list into an `enum`.
+Anything else needs a new major version: removing or renaming a field, making a field required, narrowing a range, changing a field's type, adding a rule, or turning a `known(…)` list into an `enum`.
+
+Rules are compared by their `x-rule` text: a rule whose text changes is one rule removed and another added.
 
 A change in what a field *means* is not a new version but a new type.
 
