@@ -21,6 +21,7 @@ Use `enum` only for a set that will never grow. Use `known(…)` for everything 
 - Put the unit in the field name or its description: `loss` with a record-level `currency`, `events_per_year`, `one_in_years`.
 - Probabilities are numbers from 0 to 1.
 - Dates without a time are `string(date)`; moments are `string(date-time)` with an offset.
+- A date is a calendar day and has no time zone. A moment falls on a day only in a stated zone, so a type that counts days from a moment says whose days they are. A moment's offset is how it was written, not where the organization is, and isn't used to choose the day.
 - Money is in units of one ISO 4217 currency named once in the record.
 
 ## Compatible changes
