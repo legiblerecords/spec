@@ -79,7 +79,7 @@ A system name means one kind of id, so that two publishers describing the same t
 { "emails": ["ana@acme.example"], "identifiers": [{ "system": "okta", "id": "00u1ab2cd3" }], "name": "Ana Lima" }
 ```
 
-- It has `emails` or `identifiers`, or both. A match with neither can't be matched; a reader shows it as unresolved.
+- It has `emails` or `identifiers`, or both; an empty list counts as none. `common.personMatch` requires it (`any_of(emails, identifiers)`), so a record with a match that has neither doesn't validate.
 - A reader matches identifiers first, against the identifiers of the people it holds. Only when no identifier matches anyone does it compare emails, case-insensitively.
 - A match to no one, or to more than one person, is left unresolved and shown to a person. A reader never chooses between candidates.
 - `name` is for the people resolving a match. It is never matched on.

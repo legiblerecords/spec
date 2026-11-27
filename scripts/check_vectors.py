@@ -6,7 +6,10 @@ mistake in them is caught before an implementation is tested against it.
 
 - every case has a unique name and the keys its kind needs;
 - every expected body is a valid JSON Schema 2020-12 schema;
-- every restricted-YAML case expects either a value or a known error.
+- every restricted-YAML case expects either a value or a known error;
+- every rules case has a short form with a rules list, records that hold and records that
+  break a rule, and failures with a pointer to an object in the record, in document order,
+  and a message in the form of one shape's template. The tools run the rules themselves.
 
 - every key-set case, re-checked under rules written here (the key set validated against
   its schema first, timestamps parsed as strict RFC 3339, the reader's clock from "now"),
@@ -135,6 +138,98 @@ def check_restricted_yaml(path, problems):
                 problems.append(f"{where}: unknown error {expect['error']}")
         elif set(expect) != {"value"}:
             problems.append(f"{where}: expects exactly value or error")
+    return len(data["cases"])
+
+
+# The messages of vectors/rules.json, one template per shape. A rule's semantics are run by the
+# tools against the file; here only each message's form is checked.
+_NAME = r"[A-Za-z_][A-Za-z0-9_-]*"
+_KEY = rf"{_NAME}(?:\.{_NAME})*"
+_PATH = rf"{_NAME}(?:\[\])?(?:\.{_NAME}(?:\[\])?)*"
+_NAMES = rf"(?:{_NAME}, )*{_NAME} or {_NAME}"
+_VALUE = r"[^\s,()]+"
+_PHRASE = rf"(?:not )*{_VALUE}(?:(?:, {_VALUE})* or {_VALUE})?"
+RULE_MESSAGES = {
+    "one_of": re.compile(rf"needs exactly one of (?:{_NAME} and {_NAME}|(?:{_NAME}, )+{_NAME} or {_NAME})"),
+    "at_most_one": re.compile(rf"{_NAME} and {_NAME} both given"),
+    "any_of": re.compile(rf"needs {_NAMES}"),
+    "requires": re.compile(rf"{_PHRASE} (?:needs|only when) {_PHRASE}"),
+    "before": re.compile(rf"{_NAME} .+ isn't before {_NAME} .+"),
+    "not_after": re.compile(rf"{_NAME} .+ is after {_NAME} .+"),
+    "ascending": re.compile(rf"{_NAME} isn't in order of {_KEY}"),
+    "unique": re.compile(rf"more than one item in {_NAME} has {_KEY} .+"),
+    "within": re.compile(rf".+ at {_PATH} isn't among {_PATH}"),
+}
+RULE_IN_SHORT = re.compile(r"^(\s*)rules:[ \t]*\n(?:\1[ \t]*- \S.*\n)+", re.M)
+
+
+def objects_in_order(value, pointer=""):
+    """Every object in a record, by JSON pointer, in document order: an object before the ones
+    inside it, an object's members in property name order (by code point), a list's items in
+    index order."""
+    if isinstance(value, dict):
+        yield pointer
+        items = sorted(value.items())
+    elif isinstance(value, list):
+        items = enumerate(value)
+    else:
+        return
+    for key, child in items:
+        step = str(key).replace("~", "~0").replace("/", "~1")
+        yield from objects_in_order(child, f"{pointer}/{step}")
+
+
+def check_rules(path, problems):
+    data = json.loads(path.read_text())
+    if not isinstance(data.get("description"), str):
+        problems.append(f"{path.name}: no description")
+    names, shapes = set(), set()
+    for i, case in enumerate(data["cases"]):
+        where = f"{path.name} case {i} ({case.get('name')})"
+        name = case.get("name")
+        if not name or name in names:
+            problems.append(f"{where}: missing or duplicate name")
+        names.add(name)
+        unknown = set(case) - {"name", "short", "options", "records"}
+        if unknown:
+            problems.append(f"{where}: unknown keys {sorted(unknown)}")
+        short = case.get("short")
+        if not isinstance(short, str) or not RULE_IN_SHORT.search(short):
+            problems.append(f"{where}: short isn't a short form with a rules list")
+        else:
+            shapes.update(re.findall(r"^\s*- ([a-z_]+)\(", short, re.M))
+        unknown = set(case.get("options", {})) - OPTIONS
+        if unknown:
+            problems.append(f"{where}: unknown options {sorted(unknown)}")
+        records = case.get("records")
+        if not isinstance(records, list) or not records:
+            problems.append(f"{where}: no records")
+            continue
+        if all(r.get("failures") for r in records) or all(not r.get("failures") for r in records):
+            problems.append(f"{where}: needs a record that holds and a record that breaks a rule")
+        for j, entry in enumerate(records):
+            at = f"{where} record {j}"
+            if set(entry) != {"record", "failures"} or not isinstance(entry["record"], dict):
+                problems.append(f"{at}: a record needs record, an object, and failures")
+                continue
+            order = {p: n for n, p in enumerate(objects_in_order(entry["record"]))}
+            last = -1
+            for failure in entry["failures"]:
+                if set(failure) != {"pointer", "message"}:
+                    problems.append(f"{at}: a failure needs pointer and message")
+                    continue
+                pointer, message = failure["pointer"], failure["message"]
+                if pointer not in order:
+                    problems.append(f"{at}: pointer {pointer!r} isn't an object in the record")
+                elif order[pointer] < last:
+                    problems.append(f"{at}: failure at {pointer!r} is out of document order")
+                else:
+                    last = order[pointer]
+                if not any(t.fullmatch(message) for t in RULE_MESSAGES.values()):
+                    problems.append(f"{at}: message {message!r} fits no shape's template")
+    missing = set(RULE_MESSAGES) - shapes
+    if missing:
+        problems.append(f"{path.name}: no case has {sorted(missing)}")
     return len(data["cases"])
 
 
@@ -1062,6 +1157,7 @@ def main():
     for path in sorted(ROOT.glob("vectors/schema-language*.json")):
         count += check_schema_language(path, problems)
     count += check_restricted_yaml(ROOT / "vectors" / "restricted-yaml.json", problems)
+    count += check_rules(ROOT / "vectors" / "rules.json", problems)
     count += check_signatures(ROOT / "vectors" / "signatures.json", problems, codes)
     count += check_content_lines(ROOT / "vectors" / "content-lines.json", problems)
     count += check_key_sets(ROOT / "vectors" / "key-sets", problems, codes)
