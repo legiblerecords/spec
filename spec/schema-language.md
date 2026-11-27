@@ -202,7 +202,11 @@ The other four are **own shapes**, which have no JSON Schema form:
 
 A field is **given** when its key is present and its value isn't an empty list or, for a field whose type is a plain string, an empty string.
 
-A field's type is read from its type expression, in a string or in a mapping's `type`; `json` doesn't change it. It is a list when the expression ends in `[]` or the field is a mapping with `items`. It is a plain string when the expression is `string` or `/<regex>/`. Every other type, such as `string(<format>)`, `known(…)`, `enum(…)`, `ref(…)` or a name such as `date`, is given when its key is present.
+A field's type is read from its property in the expanded schema, after `json` is merged in: the property of that name on the object the rule sits on.
+
+- It is a **list** when the property's `type` is `"array"`, as `string[]` and a mapping with `items` expand.
+- It is a **plain string** when the property's `type` is `"string"`, it has no `format`, `enum` or `const`, and it isn't what `known(…)` expands to: a non-empty `examples` list of strings beside `type`, with no other keyword than `description` and `x-data`. So `string` and `/<regex>/` are plain strings, and so is a mapping with `type: string` and `examples` whose `json` adds `maxLength`.
+- Every other field is given when its key is present: `string(<format>)`, a mapping whose `json` sets `format`, `known(…)`, a mapping with `type: string` and `examples` and nothing else, `enum(…)`, `ref(…)`, and a name such as `date`, which is a `$ref`.
 
 ### Expansion
 
@@ -216,10 +220,10 @@ Rules expand to an `allOf` list on their object, one **rule member** per rule, i
 | `requires(W, T)` | `"if": C(W), "then": C(T)` |
 | an own shape | nothing |
 
-`G(a)`, given, depends on the field's type ([§ Given](#given)):
+`G(a)`, given, depends on the field's expanded property ([§ Given](#given)):
 
-- a list: `{"required": ["a"], "properties": {"a": {"minItems": 1}}}`
-- a plain string: `{"required": ["a"], "properties": {"a": {"minLength": 1}}}`
+- a list, whose `type` is `"array"`: `{"required": ["a"], "properties": {"a": {"minItems": 1}}}`
+- a plain string, whose `type` is `"string"`, with no `format`, `enum` or `const`, and not in `known(…)`'s form: `{"required": ["a"], "properties": {"a": {"minLength": 1}}}`
 - anything else: `{"required": ["a"]}`
 
 `C(condition)`:
