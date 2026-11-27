@@ -157,7 +157,7 @@ After a rule parses, three checks run, in this order:
 2. The shape has the arguments it takes: two or more fields for `one_of` and `any_of`; two fields for `at_most_one`, `before` and `not_after`; two conditions for `requires`; a field and a key for `ascending` and `unique`; two paths for `within`. A **condition** is a field, `a = v` or `a in (…)` with `a` a field, `not` and a condition, or a call.
 3. A call inside `requires` is `any_of`, with two or more fields.
 
-A rule's **text** is the rule as written, with each run of whitespace outside a double-quoted value replaced by one space and the ends trimmed. Inside a double-quoted value, where `\` escapes the next character, the text is kept as written, so the text and the value it expands to agree. Nothing else changes: `requires(kind in (service, shared),  owner)` has the text `requires(kind in (service, shared), owner)`, `requires(a = "x  y",  b)` has the text `requires(a = "x  y", b)`, and `one_of(a,b)` keeps its text as it is.
+A rule's **text** is the rule as written, with each run of whitespace outside a double-quoted value replaced by one space and the ends trimmed. Inside a double-quoted value, where `\` escapes the next character, the text is kept as written, so the text and the value it expands to agree. Nothing else changes: `requires(kind in (service, shared),  owner)` has the text `requires(kind in (service, shared), owner)`, `requires(a = "x  y",  b)` has the text `requires(a = "x  y", b)`, and `one_of(a,b)` keeps its text as it is. A value is read from the rule's text, so an unquoted value's inner runs of whitespace are one space: `a = x  y` means `"x y"`. Quote the value to keep the spaces.
 
 ### The shapes
 
