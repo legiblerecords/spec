@@ -11,10 +11,10 @@ lede: Every legible command. The npm package's command has the same ones, except
 | `legible generate <schema.json>` | Writes a JSON Schema back as canonical short form |
 | `legible lint <schema>` | Checks a published type against the published subset |
 | `legible check-compat <old> <new>` | Lists changes that would break readers or writers of the old version |
-| `legible validate -s <schema> <record.json>…` | Validates records against their types, chosen by `$type` and `version` |
+| `legible validate -s <schema> <record.json\|record.ndjson>…` | Validates records against their types, chosen by `$type` and `version`; a `.ndjson` file holds one record per line |
 | `legible record hash <record.json>…` | Prints each record's [content hash](/types/#content-lines), what an external reference's `sha256` pins |
 
-For a published type, give the base of its `$id` with `--base`. Shared names such as `date` then point at `org.legiblerecords.common`. `validate` never fetches anything: give every schema it needs with `-s`.
+For a published type, give the base of its `$id` with `--base`. Shared names such as `date` then point at `org.legiblerecords.common`. `validate` never fetches anything: give every schema it needs with `-s`. It reports a failure in a `.ndjson` file by its line, as `<file>: line <n>: <pointer>: <message>`.
 
 ## Bundles
 
