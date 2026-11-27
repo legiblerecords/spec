@@ -252,7 +252,42 @@ So the second and third rules of the example expand to:
 
 A record is checked against each rule member, on each object in the record that the member applies to: the record itself for the document's rules, a field's value for a field mapping's, each item of a list for an `items` mapping's, and each value that refers to an entry in `defs` for that entry's. A standard shape is checked by its keywords, and an own shape by its text. A rule that doesn't hold is one failure, reported as the rule's and not as the keywords that failed inside it, with the JSON pointer of the object the rule sits on (`""` for the record, `/approvals/1` for a rule on the second item of `approvals`) and a message. `unique` and `within` fail once for each offending value, in the order the values first appear; every other rule fails at most once per object.
 
-Failures are ordered by pointer, in document order (an object before the objects inside it), then by the order of the rules on one object. Among sibling members of one object, the order is property name order, by code point; among a list's items, it is index order. [vectors/rules.json](../vectors/rules.json) fixes the messages.
+Failures are ordered by pointer, in document order (an object before the objects inside it), then by the order of the rules on one object. Among sibling members of one object, the order is property name order, by code point; among a list's items, it is index order.
+
+Each shape has one message template. Field names, keys and paths are written as in the rule, without spaces; `<v>`, `<va>` and `<vb>` are values from the record, `<va>` at `a` and `<vb>` at `b`.
+
+| Rule | Message |
+|---|---|
+| `one_of(a, b)` | `needs exactly one of a and b` |
+| `one_of(a, b, c, …)` | `needs exactly one of a, b or c` |
+| `at_most_one(a, b)` | `a and b both given` |
+| `any_of(a, b, …)` | `needs a or b`, `needs a, b or c` |
+| `requires(<when>, <then>)` | `<when> needs <then>`, or `<when> only when <then>` when `<then>` is `a = v` or `a in (…)` and `<when>` is neither, with each condition phrased as below |
+| `before(a, b)` | `a <va> isn't before b <vb>` |
+| `not_after(a, b)` | `a <va> is after b <vb>` |
+| `ascending(list, key)` | `list isn't in order of key` |
+| `unique(list, key)` | `more than one item in list has key <v>`, once for each `<v>` |
+| `within(path, among)` | `<v> at path isn't among among`, once for each `<v>` |
+
+A condition is phrased by what it holds of, not by the field it names:
+
+| Condition | Phrase |
+|---|---|
+| `a` | `a` |
+| `a = v` | `v` |
+| `a in (v, w, …)` | `v or w`, `v, w or x` |
+| `not <condition>` | `not` and the condition's phrase: `not v` |
+| `any_of(a, b, …)` | `a or b`, `a, b or c` |
+
+So `requires(status = revoked, revoked_on)` gives `revoked needs revoked_on`, `requires(revoked_on, status = revoked)` gives `revoked_on only when revoked`, and `requires(not kind in (service, shared), any_of(person_id, person_email))` gives `not service or shared needs person_id or person_email`. Two names or values are joined by `and` in `one_of` and by `or` elsewhere; three or more are joined by `, ` with `or` before the last, in `one_of` too.
+
+A value, from the record or from a rule, is shown this way:
+
+- A string is shown as written, except that `\`, the C0 controls (U+0000 to U+001F), DEL (U+007F) and the C1 controls (U+0080 to U+009F) are escaped as JSON escapes them: `\\`, `\b`, `\t`, `\n`, `\f`, `\r`, and `\u` with four lowercase hex digits for the others (`\u001b`). So a record's value can't add a line to a checker's output or send a terminal escape.
+- A number is shown as JSON writes it: an integer of up to 64 bits as its digits, and any other number as the shortest decimal digits that read back as the same double, with a digit after the point when no exponent is written (`2.5`, `1.0` for `1.0` or `1e0`). Whether and how an exponent is written (`1e+20`) isn't fixed.
+- Any other value, which `before`, `not_after`, `unique` and `within` can meet, is shown as JSON without spaces, with an object's members in property name order and DEL and C1 controls escaped as in a string: `{"a":1,"b":[2]}`.
+
+[vectors/rules.json](../vectors/rules.json) fixes the messages.
 
 ### Problems with rules
 
