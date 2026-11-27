@@ -248,7 +248,7 @@ So the second and third rules of the example expand to:
 
 A record is checked against each rule member, on each object in the record that the member applies to: the record itself for the document's rules, a field's value for a field mapping's, each item of a list for an `items` mapping's, and each value that refers to an entry in `defs` for that entry's. A standard shape is checked by its keywords, and an own shape by its text. A rule that doesn't hold is one failure, reported as the rule's and not as the keywords that failed inside it, with the JSON pointer of the object the rule sits on (`""` for the record, `/approvals/1` for a rule on the second item of `approvals`) and a message. `unique` and `within` fail once for each offending value, in the order the values first appear; every other rule fails at most once per object.
 
-Failures are ordered by pointer, in document order (an object before the objects inside it, and those in the order they appear), then by the order of the rules on one object. Among sibling members of one object, the order is property name order, by code point; among a list's items, it is index order. [vectors/rules.json](../vectors/rules.json) fixes the messages.
+Failures are ordered by pointer, in document order (an object before the objects inside it), then by the order of the rules on one object. Among sibling members of one object, the order is property name order, by code point; among a list's items, it is index order. [vectors/rules.json](../vectors/rules.json) fixes the messages.
 
 ### Problems with rules
 
