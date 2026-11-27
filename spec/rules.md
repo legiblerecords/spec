@@ -11,7 +11,7 @@ A published type's expanded schema doesn't use:
 - `else`, `dependentSchemas` or `dependentRequired`;
 - `if`, `then`, `not` or `oneOf`, other than inside a rule member;
 - `anyOf`, other than inside a rule member or for a value that may be null;
-- `allOf`, other than to hold rule members, and then it holds nothing else;
+- `allOf`, other than inside a rule member, or to hold rule members and nothing else;
 - `additionalProperties: false`, at any level: readers must accept fields they don't know.
 
 A **rule member** is an entry of an `allOf` list that has an `x-rule` and is exactly what that rule expands to ([schema language § Rules](schema-language.md#rules)): its other keywords are the rule's expansion and nothing more. Checking the subset includes checking each rule member against its rule.

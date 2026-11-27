@@ -10,7 +10,7 @@ A published type's expanded schema doesn't use:
 - `else`, `dependentSchemas` or `dependentRequired`;
 - `if`, `then`, `not` or `oneOf`, other than inside a rule member: an `allOf` entry that is exactly what its `x-rule` expands to ([schema language § Rules](/spec/schema-language/#rules));
 - `anyOf`, other than inside a rule member or for a value that may be null;
-- `allOf`, other than to hold rule members;
+- `allOf`, other than inside a rule member, or to hold rule members and nothing else;
 - `additionalProperties: false`, at any level: readers must accept fields they don't know.
 
 A type with variants uses an explicit `kind` field, with optional fields for each kind. Use `enum` only for a set that will never grow, and `known(…)` for everything else.
