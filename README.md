@@ -53,4 +53,12 @@ A file is then "a Legible Record of type `tech.monorail.controls.control`."
 
 ## License
 
-[Apache License 2.0](LICENSE).
+Each part is under the licence that suits how it's used:
+
+| What | Licence |
+|---|---|
+| The specification's text, in `spec/`, and the site's guides, `site/src/*.md` | [CC BY 4.0](spec/LICENSE), by Monorail Technology: share and adapt it, with credit |
+| The schemas, fixtures and test vectors, in `schemas/`, `fixtures/` and `vectors/` | [CC0 1.0](schemas/LICENSE): copy them into your own types, tests and tools with no conditions and no notice to keep |
+| The code: the scripts in `scripts/` and the site's build, in `site/` | [Apache License 2.0](LICENSE) |
+
+The schemas' licence is also served at `https://legiblerecords.org/schemas/LICENSE`, beside the schemas themselves.

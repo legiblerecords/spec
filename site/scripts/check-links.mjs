@@ -1,7 +1,8 @@
 // Checks every link inside the built site: each page a link names exists, and
 // so does each #section, in the HTML pages and in their Markdown copies. Also
 // checks that each of the repository's schemas is served at the URL its $id
-// names, and that every $ref into this site names a served schema.
+// names, that every $ref into this site names a served schema, and that the
+// schemas' licence is served beside them.
 // Run after a build, from site/: node scripts/check-links.mjs
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -59,7 +60,7 @@ for (const file of files) {
 // Schemas: ../schemas/<type>/v<n>.json must have $id <site>/schemas/<type>/v<n>.json,
 // and be served there byte for byte.
 const SITE = "https://legiblerecords.org";
-for (const type of readdirSync("../schemas")) {
+for (const type of readdirSync("../schemas", { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)) {
   for (const file of readdirSync(join("../schemas", type)).filter((f) => /^v\d+\.json$/.test(f))) {
     const source = join("../schemas", type, file);
     const text = readFileSync(source, "utf8");
@@ -75,6 +76,11 @@ for (const type of readdirSync("../schemas")) {
     }
   }
 }
+
+// The schemas' licence is served beside them, as it is in the repository.
+const licence = join(root, "schemas", "LICENSE");
+if (!existsSync(licence)) problems.push(`../schemas/LICENSE: not served at ${SITE}/schemas/LICENSE`);
+else if (readFileSync(licence, "utf8") !== readFileSync("../schemas/LICENSE", "utf8")) problems.push(`${licence}: differs from ../schemas/LICENSE`);
 
 for (const p of problems) console.error(p);
 console.log(`${files.length} files checked, ${problems.length} broken links`);

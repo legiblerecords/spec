@@ -16,9 +16,12 @@ export default function (eleventyConfig) {
   eleventyConfig.addPassthroughCopy({ "src/icons": "/" });
 
   // The repository's schemas, at the paths their $ids name:
-  // ../schemas/<type>/v<n>.json is served at /schemas/<type>/v<n>.json.
+  // ../schemas/<type>/v<n>.json is served at /schemas/<type>/v<n>.json,
+  // and their licence, ../schemas/LICENSE, at /schemas/LICENSE.
   eleventyConfig.on("eleventy.after", ({ dir }) => {
-    for (const type of readdirSync("../schemas")) {
+    mkdirSync(join(dir.output, "schemas"), { recursive: true });
+    copyFileSync("../schemas/LICENSE", join(dir.output, "schemas", "LICENSE"));
+    for (const type of readdirSync("../schemas", { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)) {
       for (const file of readdirSync(join("../schemas", type)).filter((f) => /^v\d+\.json$/.test(f))) {
         mkdirSync(join(dir.output, "schemas", type), { recursive: true });
         copyFileSync(join("../schemas", type, file), join(dir.output, "schemas", type, file));

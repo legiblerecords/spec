@@ -4,7 +4,7 @@ Legible Records is a draft. Issues are welcome: questions, problems with the spe
 
 ## Sign your commits off
 
-Contributions are accepted under the [Developer Certificate of Origin](https://developercertificate.org/). Add a `Signed-off-by` line to every commit (`git commit -s`), certifying that you wrote the change or have the right to contribute it under the project's license.
+Contributions are accepted under the [Developer Certificate of Origin](https://developercertificate.org/). Add a `Signed-off-by` line to every commit (`git commit -s`), certifying that you wrote the change or have the right to contribute it under the license of the part it changes: CC BY 4.0 for the spec's text and the site's guides, CC0 for schemas, fixtures and vectors, Apache 2.0 for code (see [License](README.md#license)).
 
 ## Changing the spec
 
