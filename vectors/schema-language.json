@@ -1297,7 +1297,7 @@
    },
    "name": "rules-requires-in",
    "schema": "t",
-   "short": "fields:\n  kind: known(person, service, shared)\n  owner?: string\nrules:\n  - requires(kind in (service,shared),  owner)\n"
+   "short": "fields:\n  kind: known(person, service, shared)\n  owner?: string\nrules:\n  - requires(kind in (service, shared),  owner)\n"
   },
   {
    "expect": {
@@ -2365,14 +2365,14 @@
     "problems": [
      {
       "line": 6,
-      "message": "rule written twice in `one_of(a,b)`",
+      "message": "rule written twice in `one_of(a,  b)`",
       "path": "rules[1]"
      }
     ]
    },
    "name": "error-rules-twice",
    "schema": "t",
-   "short": "fields:\n  a?: string\n  b?: string\nrules:\n  - one_of(a, b)\n  - one_of(a,b)\n"
+   "short": "fields:\n  a?: string\n  b?: string\nrules:\n  - one_of(a, b)\n  - one_of(a,  b)\n"
   },
   {
    "expect": {
@@ -2386,7 +2386,7 @@
    },
    "name": "error-rules-nullable-object",
    "schema": "t",
-   "short": "fields:\n  m?:\n    type: object?\n    fields:\n      a?: string\n      b?: string\n    rules:\n      - one_of(a, b)\n"
+   "short": "fields:\n  m:\n    type: object?\n    fields:\n      a?: string\n      b?: string\n    rules:\n      - one_of(a, b)\n"
   },
   {
    "expect": {

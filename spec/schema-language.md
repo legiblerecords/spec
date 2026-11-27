@@ -139,23 +139,25 @@ rules:
 In a published type, `$type` and `version` aren't fields a rule can name.
 
 ```
-rule      = "one_of(" field ("," field)+ ")" | "any_of(" field ("," field)+ ")"
-          | "at_most_one(" field "," field ")"
-          | "requires(" condition "," condition ")"
-          | "before(" field "," field ")" | "not_after(" field "," field ")"
-          | "ascending(" field "," key ")" | "unique(" field "," key ")"
-          | "within(" path "," path ")"
-condition = "not" condition | field "=" value | field "in" "(" value ("," value)* ")"
-          | "any_of(" field ("," field)+ ")" | field
-key       = field ("." field)*
-path      = step ("." step)*
-step      = field ["[]"]
-field     = [A-Za-z_][A-Za-z0-9_-]*
+rule = call
+call = name "(" arg ("," arg)* ")"
+arg  = "not" arg | path "=" value | path "in" "(" value ("," value)* ")" | call | path
+path = step ("." step)*
+step = name ["[]"]
+name = [A-Za-z_][A-Za-z0-9_-]*
 ```
 
-Spaces may separate tokens, but may not come before `(` after a shape's name, or before `[]`. `not` and `in` are separated from what follows them by a space. A `value` is read as `enum`'s values are ([§ Type expressions](#type-expressions)), and ends at a `,` or `)` outside double quotes.
+Spaces may separate tokens, but may not come before `(` after a call's name, or before `[]`. `not` and `in` are separated from what follows them by a space. A `value` is read as `enum`'s values are ([§ Type expressions](#type-expressions)), and ends at a `,` or `)` outside double quotes.
 
-A rule's **text** is the rule with single spaces: none just inside parentheses, `, ` between arguments, ` = ` around `=`, and one space on each side of `in` and after `not`. `requires(kind in (service,shared),  owner)` has the text `requires(kind in (service, shared), owner)`.
+A **field** is a path of one step without `[]`; a **key** is a path without `[]`.
+
+After a rule parses, three checks run, in this order:
+
+1. The call's name is a shape: `one_of`, `at_most_one`, `any_of`, `requires`, `before`, `not_after`, `ascending`, `unique` or `within`.
+2. The shape has the arguments it takes: two or more fields for `one_of` and `any_of`; two fields for `at_most_one`, `before` and `not_after`; two conditions for `requires`; a field and a key for `ascending` and `unique`; two paths for `within`. A **condition** is a field, `a = v` or `a in (…)` with `a` a field, `not` and a condition, or a call.
+3. A call inside `requires` is `any_of`, with two or more fields.
+
+A rule's **text** is the rule as written, with each run of whitespace replaced by one space and the ends trimmed. Nothing else changes: `requires(kind in (service, shared),  owner)` has the text `requires(kind in (service, shared), owner)`, and `one_of(a,b)` keeps its text as it is.
 
 ### The shapes
 
@@ -250,12 +252,12 @@ Each of these is a problem ([§ Problems](#problems)):
 - `rules` that isn't a list of strings.
 - `json` setting `allOf` on an object that has `rules` (`json sets allOf beside rules`). The path is the `allOf` key under `json`.
 
-Each of these is a problem with one rule. Its path is the rule's position in the list (`rules[0]`), and its message ends with `` in `<rule>` ``, the rule as written.
+Each of these is a problem with one rule, reported by the first step that fails: parsing, the three checks, then the rest in order. Its path is the rule's position in the list (`rules[0]`), and its message ends with `` in `<rule>` ``, the rule as written.
 
-- A rule that doesn't fit the grammar (`bad rule`).
-- An unknown shape (`unknown shape <name>`).
-- A shape with the wrong number of arguments, such as `at_most_one(a, b, c)` (`at_most_one takes two fields`).
-- A shape other than `any_of` inside `requires` (`requires takes only any_of inside it`).
+- A rule that doesn't fit the grammar (`bad rule`). Only this is `bad rule`; the three checks after parsing have problems of their own.
+- A call whose name isn't a shape (`unknown shape <name>`).
+- A shape without the arguments it takes, such as `at_most_one(a, b, c)` (`at_most_one takes two fields`).
+- A call inside `requires` other than `any_of` (`requires takes only any_of inside it`).
 - A field the object doesn't have, or a step of a key or path that isn't a field where it points (`no field <name>`).
 - A field whose value may be null (`<name> is nullable`).
 - A field compared by `before` or `not_after`, or an `ascending` key, that isn't a number, date or datetime (`before needs numbers, dates or datetimes: <name> is <type expression>`), or two fields of different kinds (`before compares a date with a datetime`, the kinds in the order of the arguments).
