@@ -33,7 +33,7 @@ The guides summarize the spec and the [tools](https://github.com/legiblerecords/
 
 The pages under `/spec/` are the files in `spec/`, built as they are: only their links change, so they work on this site. Links between spec files point at their pages here, and links to `schemas/`, `vectors/` and `fixtures/` point at GitHub. The other pages are guides to using Legible Records. Where a rule is normative, a guide links to the spec section that states it, rather than restating it, so the two can't drift apart.
 
-The site also serves each `schemas/<type>/v<n>.json` at `/schemas/<type>/v<n>.json`, the URL its `$id` names, byte for byte.
+The site also serves each `schemas/<type>/v<n>.json` at `/schemas/<type>/v<n>.json`, the URL its `$id` names, byte for byte, and the schemas' licence, `schemas/LICENSE`, at `/schemas/LICENSE`.
 
 A new spec file needs a line in `src/_data/spec.js` and in `src/_data/nav.js`; the build stops and says so until it has them. `npm run check` (or `mise run check`) builds the site and fails on any link to a page or `#section` that doesn't exist, and on any schema that isn't served at its `$id`. CI runs it on every pull request that touches `site/`, `spec/` or `schemas/`, so renaming a spec section that a guide links to fails there.
 
@@ -58,3 +58,7 @@ To set it up:
 Every page is also built as Markdown, at the page's URL with `.md` (`/types/` is also `/types.md`, `/` is `/index.md`), and linked from the page's head. `/llms.txt` lists every page with its one-line `lede`, following [llmstxt.org](https://llmstxt.org), and `/llms-full.txt` is the whole site in one file. All three are built from the same Markdown, so they never drift from the HTML.
 
 For that to work, pages stay plain Markdown: no template tags in them, and every page has a `lede`, its one-sentence summary. Links between pages are written as `/types/`; the Markdown copies point them at `/types.md`. `src/_data/site.js` holds the site's URL, which those files use for absolute links.
+
+## License
+
+The pages' text, `src/*.md`, is under [CC BY 4.0](../spec/LICENSE), like the spec's. The rest of `site/` is code, under the [Apache License 2.0](../LICENSE). The footer on every page says so.
