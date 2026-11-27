@@ -197,6 +197,7 @@ The other four are **own shapes**, which have no JSON Schema form:
 - `before`, `not_after` and `ascending` compare numbers as numbers, dates as dates and datetimes as moments. A field's kind is read from its type expression, by name, with nothing looked up: `integer` and `number`, with or without a range, are numbers; `date` is a date; `datetime` is a datetime. A value that doesn't parse as its field's kind breaks the rule.
 - `list` is a field holding a list. `key` is a field of its items, or a dotted path into them.
 - In `within`, a path steps into a list's items with `[]`: `within(statements[].estimates[].expert, experts[].id)`.
+- `unique` and `within` compare values as JSON Schema's `uniqueItems` does: numbers by value, so `1` and `1.0` are the same; strings by their characters; lists item by item, in order; objects by their members, in any order. Values of different JSON types are never the same, so `"1"` isn't `1`.
 
 ### Given
 
